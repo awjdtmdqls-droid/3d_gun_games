@@ -3,948 +3,246 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>3D 1v1 FPS Rival Shooter - Floating Jump & Portal Gun</title>
+  <title>3D 1v1 FPS Rival Shooter</title>
   
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- PeerJS 라이브러리 (P2P 통신용 필수 CDN) -->
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <!-- Three.js (3D 그래픽 엔진) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
-    body, html { width: 100%; height: 100%; overflow: hidden; background: #0f0f13; font-family: 'Segoe UI', sans-serif; }
-    
-    #game-canvas { width: 100vw; height: 100vh; display: block; cursor: crosshair; }
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body { width: 100vw; height: 100vh; overflow: hidden; background: #08080c; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #fff; }
+    canvas { display: block; width: 100%; height: 100%; }
 
-    #flash-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #ffffff; z-index: 99; opacity: 0; pointer-events: none; transition: opacity 0.1s ease; }
-    #poison-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(50, 255, 0, 0.2); z-index: 97; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
-
-    .ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; justify-content: center; align-items: center; z-index: 10; }
+    /* UI 레이어 공통 스타일 */
+    .ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; justify-content: center; align-items: center; }
     .interactive { pointer-events: auto; }
 
-    .card { background: rgba(18, 18, 24, 0.94); border: 2px solid #00ffcc; border-radius: 16px; padding: 24px; color: #fff; text-align: center; width: 520px; box-shadow: 0 0 30px rgba(0, 255, 204, 0.25); backdrop-filter: blur(10px); }
-    h2 { margin-bottom: 8px; color: #00ffcc; font-size: 20px; }
-    p.desc { font-size: 12px; color: #aaa; margin-bottom: 14px; }
-    
-    input { width: 100%; padding: 10px; margin-bottom: 12px; border-radius: 8px; border: 1px solid #333; background: #1a1a24; color: #00ffcc; text-align: center; font-size: 16px; font-weight: bold; letter-spacing: 1px; outline: none; }
+    /* 로비 & 메뉴 카드 */
+    .card { background: rgba(18, 18, 26, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 32px; width: 400px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.6); }
+    .card h2 { font-size: 26px; margin-bottom: 8px; color: #00ffcc; text-transform: uppercase; letter-spacing: 1px; }
+    .card p.desc { font-size: 13px; color: #8a8a9e; margin-bottom: 24px; }
 
-    .option-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; max-height: 200px; overflow-y: auto; padding-right: 5px;}
-    .option-group::-webkit-scrollbar { width: 5px; }
-    .option-group::-webkit-scrollbar-thumb { background: #00ffcc; border-radius: 5px; }
+    /* 버튼 및 입력창 */
+    .action-btn { width: 100%; padding: 14px; border: none; border-radius: 8px; background: linear-gradient(135deg, #00ffcc, #0099ff); color: #000; font-weight: bold; font-size: 15px; cursor: pointer; transition: all 0.2s ease; margin-bottom: 10px; }
+    .action-btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0, 255, 204, 0.4); }
+    .action-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+    .action-btn.secondary { background: #252533; color: #fff; border: 1px solid rgba(255,255,255,0.1); }
+    .action-btn.secondary:hover { background: #323246; }
+    .action-btn.danger { background: #ff4757; color: #fff; }
 
-    .option-btn { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #444; background: #2a2a38; color: #ccc; font-weight: bold; font-size: 13px; cursor: pointer; transition: all 0.2s ease; }
-    .option-btn:hover { background: #3a3a4c; color: #fff; }
-    .option-btn.active { background: #00ffcc !important; color: #0f0f13 !important; border: 2px solid #fff !important; font-weight: bold; box-shadow: 0 0 14px rgba(0, 255, 204, 0.6); }
+    input[type="text"] { width: 100%; padding: 12px; background: #12121a; border: 1px solid #333; border-radius: 8px; color: #fff; text-align: center; font-size: 16px; margin-bottom: 10px; outline: none; }
+    input[type="text"]:focus { border-color: #00ffcc; }
 
-    button.action-btn { width: 100%; padding: 12px; margin: 4px 0; border-radius: 8px; border: none; background: #00ffcc; color: #0f0f13; font-weight: bold; font-size: 15px; cursor: pointer; transition: all 0.2s; }
-    button.action-btn:hover { background: #00d6ad; transform: translateY(-2px); }
-    button.action-btn:disabled { background: #444 !important; color: #888 !important; cursor: not-allowed; transform: none; }
-    button.secondary { background: #2a2a38; color: #00ffcc; border: 1px solid #00ffcc; }
-    button.ai-btn { background: #ffaa00; color: #111; margin-top: 6px; }
-    button.danger { background: #ff0055; color: #fff; }
+    /* 크로스헤어 */
+    #crosshair { position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; border: 2px solid rgba(0, 255, 204, 0.8); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; display: none; }
 
-    .top-scoreboard { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); background: rgba(15, 15, 20, 0.75); border: 1px solid rgba(0, 255, 204, 0.4); border-radius: 20px; padding: 6px 24px; color: #fff; font-size: 16px; font-weight: bold; text-shadow: 0 0 8px rgba(255, 170, 0, 0.6); z-index: 5; display: none; backdrop-filter: blur(6px); }
-    .top-scoreboard span { color: #ffaa00; font-size: 18px; margin: 0 4px; }
+    /* 상단 스코어보드 & 조작 팁 */
+    #score-board { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); padding: 8px 24px; border-radius: 20px; font-weight: bold; font-size: 18px; border: 1px solid rgba(255,255,255,0.1); display: none; }
+    #controls-tip { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.5); padding: 12px; border-radius: 8px; font-size: 12px; color: #aaa; pointer-events: none; display: none; }
 
-    #hud-bottom-left { position: absolute; bottom: 25px; left: 25px; color: #fff; z-index: 5; display: none; width: 280px; font-family: 'Segoe UI', sans-serif; }
-    
-    .status-tags-container { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
-    .status-tag { display: none; font-weight: bold; font-size: 11px; padding: 3px 8px; border-radius: 4px; background: rgba(0,0,0,0.6); width: fit-content; backdrop-filter: blur(4px); }
-    #invincible-tag { color: #00ffcc; border: 1px solid #00ffcc; }
-    #stealth-tag { color: #00bfff; border: 1px solid #00bfff; }
-    #infammo-tag { color: #d000ff; border: 1px solid #d000ff; }
-    #speed-tag { color: #0055ff; border: 1px solid #0055ff; }
+    /* 하단 HUD */
+    #hud-bottom-left { position: absolute; bottom: 20px; left: 20px; display: none; pointer-events: none; width: 260px; }
+    .status-tags-container { display: flex; gap: 8px; margin-bottom: 8px; }
+    .status-tag { display: none; padding: 4px 8px; background: rgba(0,0,0,0.7); border-radius: 4px; font-size: 11px; font-weight: bold; }
+    #invincible-tag { color: #ffd700; border: 1px solid #ffd700; }
+    #stealth-tag { color: #a855f7; border: 1px solid #a855f7; }
 
-    .stat-bars-card { background: rgba(12, 12, 18, 0.85); border: 1px solid rgba(255, 255, 255, 0.15); border-left: 4px solid #00ffcc; border-radius: 10px; padding: 12px 14px; backdrop-filter: blur(8px); box-shadow: 0 4px 15px rgba(0,0,0,0.4); margin-bottom: 8px; }
-    .bar-label { font-size: 11px; color: #bbb; display: flex; justify-content: space-between; margin-bottom: 3px; font-weight: 600; }
-    .hp-container, .shield-container { width: 100%; height: 8px; background: #222; border-radius: 4px; overflow: hidden; border: 1px solid #333; }
-    .hp-bar-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #ff0055, #ff5500); transition: width 0.1s ease; }
-    .shield-bar-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #00bfff, #00ffff); transition: width 0.1s ease; }
+    .stat-bars-card, .weapon-info-card { background: rgba(18, 18, 26, 0.75); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px; margin-top: 6px; }
+    .bar-label { display: flex; justify-content: space-between; font-size: 11px; color: #aaa; margin-bottom: 4px; }
+    .hp-container, .shield-container { width: 100%; height: 8px; background: #1a1a24; border-radius: 4px; overflow: hidden; }
+    .hp-bar-fill { width: 100%; height: 100%; background: #ff4757; transition: width 0.2s; }
+    .shield-bar-fill { width: 100%; height: 100%; background: #00d2d3; transition: width 0.2s; }
 
-    .weapon-info-card { background: rgba(12, 12, 18, 0.85); border: 1px solid rgba(255, 255, 255, 0.15); border-left: 4px solid #ffaa00; border-radius: 10px; padding: 10px 14px; backdrop-filter: blur(8px); box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
-    .weapon-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-    .weapon-name { font-weight: bold; font-size: 14px; color: #00ffcc; }
-    .ammo-count { font-size: 16px; font-weight: bold; color: #fff; }
-    .item-row { font-size: 11px; color: #aaa; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px; display: flex; justify-content: space-between; }
+    .weapon-row { display: flex; justify-content: space-between; align-items: center; }
+    .weapon-name { font-size: 13px; font-weight: bold; color: #00ffcc; }
+    .ammo-count { font-size: 14px; font-weight: bold; }
 
-    .crosshair { position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; border: 2px solid #00ffcc; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; display: none; z-index: 5; }
-    #scope-overlay { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; display: none; z-index: 20; background: radial-gradient(circle at center, transparent 38%, rgba(5,5,5,0.92) 42%, rgba(0,0,0,1) 52%); }
-    .scope-line-v { position: absolute; top: 50%; left: 50%; width: 2px; height: 88vh; background: rgba(0, 0, 0, 0.88); transform: translate(-50%, -50%); }
-    .scope-line-h { position: absolute; top: 50%; left: 50%; width: 88vh; height: 2px; background: rgba(0, 0, 0, 0.88); transform: translate(-50%, -50%); }
-    .scope-dot { position: absolute; top: 50%; left: 50%; width: 5px; height: 5px; background: #ff0055; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 6px #ff0055; }
-
-    #notice-overlay { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); color: #ffaa00; font-size: 22px; font-weight: bold; text-shadow: 0 0 10px #ffaa00; display: none; z-index: 6; pointer-events: none; text-align: center; }
-    #controls-tip { position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.9); font-size: 12px; background: rgba(0,0,0,0.75); padding: 8px 18px; border-radius: 20px; display: none; z-index: 5; text-align: center; border: 1px solid rgba(0,255,204,0.3); }
-
-    #ingame-menu { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: none; z-index: 50; }
+    /* 일시정지 메뉴 */
+    #ingame-menu { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 100; }
   </style>
 </head>
 <body>
 
-  <div id="flash-overlay"></div>
-  <div id="poison-overlay"></div>
+  <!-- 크로스헤어 & 중앙 조준점 -->
+  <div id="crosshair"></div>
 
-  <canvas id="game-canvas"></canvas>
-
-  <div id="crosshair" class="crosshair"></div>
-  <div id="scope-overlay">
-    <div class="scope-line-v"></div>
-    <div class="scope-line-h"></div>
-    <div class="scope-dot"></div>
+  <!-- 상단 스코어 보드 -->
+  <div id="score-board">
+    나 <span id="my-score">0</span> : <span id="enemy-score">0</span> 상대
   </div>
 
-  <div id="notice-overlay">탄약 고갈! 보조 무기로 전환됩니다.</div>
-  
+  <!-- 우상단 조작법 안내 -->
   <div id="controls-tip">
-    🕹️ WASD / 방향키 이동 | 🆙 Space 부드러운 점프 | 🔄 <strong>E키: 무기 교체 (주무기 ↔ 포탈건)</strong><br>
-    🎯 우클릭: 조준(파란포탈) | 💥 좌클릭: 사격(빨간포탈) | 🛡️ F키: 방패 | 🍾 G키: 대형 투척 | 💡 Q키: 메뉴
+    [WASD] 이동 | [Space] 플로팅 점프<br>
+    [Q] 메뉴 / 마우스 커서 | [좌클릭] 사격
   </div>
 
-  <div id="score-board" class="top-scoreboard">
-    🏆 Score: <span id="my-score">0</span> / <span id="enemy-score">0</span>
-  </div>
-
-  <div id="hud-bottom-left">
-    <div class="status-tags-container">
-      <div id="invincible-tag" class="status-tag">🛡️ 무적 상태</div>
-      <div id="stealth-tag" class="status-tag">🥷 스텔스 (반투명)</div>
-      <div id="infammo-tag" class="status-tag">♾️ 탄약 무한</div>
-      <div id="speed-tag" class="status-tag">⚡ 스피드 부스트</div>
-    </div>
-    <div class="stat-bars-card">
-      <div class="bar-label">
-        <span>HP</span><span id="hud-hp-text">100 / 100</span>
-      </div>
-      <div class="hp-container"><div id="hud-hp-bar" class="hp-bar-fill"></div></div>
-      <div class="bar-label" style="margin-top: 6px;">
-        <span>SHIELD</span><span id="hud-shield-text">100 / 100</span>
-      </div>
-      <div class="shield-container"><div id="hud-shield-bar" class="shield-bar-fill"></div></div>
-    </div>
-    <div class="weapon-info-card">
-      <div class="weapon-row">
-        <span id="hud-weapon" class="weapon-name">기본 소총</span>
-        <span class="ammo-count"><span id="hud-ammo">20</span> / <span id="hud-max-ammo">20</span></span>
-      </div>
-      <div class="item-row">
-        <span><b id="hud-shield-item" style="color:#00ffff;">0</b> 방패(F)</span>
-        <span><b id="hud-pot-item" style="color:#ffaa00;">0</b> 투척물(G)</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="ui-layer" id="ui-layer">
-    <div id="step-code" class="card interactive">
+  <!-- 메인 게임 UI 레이어 (로비) -->
+  <div class="ui-layer" id="main-lobby-layer">
+    <div class="card interactive">
       <h2>3D 1v1 FPS Rival Shooter</h2>
-      <p class="desc">포탈건을 이용한 1vs1 P2P 대전 게임</p>
+      <p class="desc">Floating Jump & Portal Gun (P2P 멀티플레이어)</p>
       
-      <!-- 방 만들기 섹션 -->
-      <div style="margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 15px;">
-        <button class="action-btn" id="btn-create-room" onclick="createRoom()">🎲 새로운 방 만들기 (팀코드 발급)</button>
-        <div id="room-code-display" style="margin-top: 10px; font-size: 18px; color: #00ffcc; font-weight: bold; display: none;">
-          생성된 팀코드: <span id="generated-code" style="font-size: 24px; color: #fff; background: #222; padding: 2px 10px; border-radius: 5px;">0000</span>
+      <!-- [섹션 1] 방 만들기 (팀코드 발급) -->
+      <div style="margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 18px;">
+        <button class="action-btn" id="btn-make-room">새로운 게임방 생성</button>
+        <div id="room-code-area" style="margin-top: 12px; font-size: 16px; color: #00ffcc; display: none;">
+          전달할 팀코드 4자리: 
+          <span id="txt-room-code" style="font-size: 22px; color: #fff; background: #1a1a24; padding: 4px 14px; border-radius: 6px; border: 1px solid #00ffcc; margin-left: 5px; letter-spacing: 1px;">0000</span>
         </div>
       </div>
 
-      <!-- 방 참여하기 섹션 -->
+      <!-- [섹션 2] 방 참가하기 (팀코드 입력) -->
       <div>
-        <input type="text" id="input-team-code" placeholder="친구의 팀코드 4자리 입력" maxlength="4">
-        <button class="action-btn secondary" id="btn-join-room" onclick="joinRoom()">🔗 게임 참여하기</button>
+        <input type="text" id="input-room-code" placeholder="친구의 팀코드 4자리 입력" maxlength="4">
+        <button class="action-btn secondary" id="btn-enter-room">게임방 참가하기</button>
       </div>
-      
-      <!-- 상태 메시지 출력 -->
-      <p id="code-status-msg" style="margin-top:12px; font-size:13px; color:#ffaa00; font-weight:bold;"></p>
-      
-      <!-- AI 대전 옵션 (부차적으로 배치) -->
-      <button class="action-btn ai-btn" onclick="startAiMode()" style="margin-top: 25px;">🤖 1v1 혼자 AI 대전 연습하기</button>
-    </div>
-
-    <!-- 인게임 메뉴 (Q키) -->
-    <div id="ingame-menu" class="card interactive">
-      <h2>일시 정지 메뉴</h2>
-      <p class="desc">아래 옵션을 통해 게임 설정을 변경할 수 있습니다.</p>
-      <div class="option-group">
-        <button class="option-btn" id="btn-opt-hp">체력 무한 / 보통 (토글)</button>
-        <button class="option-btn" id="btn-opt-ammo">탄약 무한 / 보통 (토글)</button>
-        <button class="option-btn" id="btn-opt-weapon">무기 랜덤 변경 (지급)</button>
-        <button class="option-btn" id="btn-opt-mode">속도 부스트 (토글)</button>
-        <button class="option-btn" id="btn-opt-gravity">저중력 모드 (토글)</button>
-      </div>
-      <button class="action-btn danger" onclick="resumeGame()">게임으로 돌아가기 (Q)</button>
     </div>
   </div>
 
+  <!-- 인게임 메뉴 (Q키 대응) -->
+  <div id="ingame-menu" class="card interactive">
+    <h2>게임 일시정지</h2>
+    <p class="desc">대기실로 돌아가거나 설정을 변경합니다.</p>
+    <button class="action-btn danger" onclick="location.reload()">대기실로 나가기</button>
+  </div>
+
+  <!-- 하단 HUD 스태츠 영역 -->
+  <div id="hud-bottom-left">
+    <div class="status-tags-container">
+      <div id="invincible-tag" class="status-tag">🛡️ 무적 상태</div>
+      <div id="stealth-tag" class="status-tag">👤 은신 상태</div>
+    </div>
+    <div class="stat-bars-card">
+      <div class="bar-label"><span>체력 (HP)</span><span id="txt-hp">100</span></div>
+      <div class="hp-container"><div id="bar-hp" class="hp-bar-fill"></div></div>
+      <div class="bar-label" style="margin-top: 6px;"><span>보호막 (SHIELD)</span><span id="txt-shield">100</span></div>
+      <div class="shield-container"><div id="bar-shield" class="shield-bar-fill"></div></div>
+    </div>
+    <div class="weapon-info-card">
+      <div class="weapon-row">
+        <span class="weapon-name" id="txt-weapon">주무기 (Rifle)</span>
+        <span class="ammo-count" id="txt-ammo">30 / ∞</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🎮 멀티플레이어 매칭 스크립트 -->
   <script>
-    /* =========================================
-       1. Three.js 설정 및 초기 맵 구성
-       ========================================= */
-    const canvas = document.getElementById('game-canvas');
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    let peer = null;
+    let conn = null;
+    const ROOM_PREFIX = "fps_rival_"; // 다른 게임방과의 충돌 방지용 접두사
 
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0f0f13);
-    scene.fog = new THREE.Fog(0x0f0f13, 20, 150);
-
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 1.8, 0);
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.25);
-    scene.add(ambientLight);
-
-    const dirLight = new THREE.DirectionalLight(0xffeedd, 0.7);
-    dirLight.position.set(50, 100, 50);
-    dirLight.castShadow = true;
-    dirLight.shadow.camera.left = -50; dirLight.shadow.camera.right = 50;
-    dirLight.shadow.camera.top = 50; dirLight.shadow.camera.bottom = -50;
-    scene.add(dirLight);
-
-    const pointLight1 = new THREE.PointLight(0x00ffcc, 1, 30);
-    pointLight1.position.set(10, 5, 10);
-    scene.add(pointLight1);
-    const pointLight2 = new THREE.PointLight(0xff0055, 1, 30);
-    pointLight2.position.set(-10, 5, -10);
-    scene.add(pointLight2);
-
-    const texLoader = new THREE.TextureLoader();
-    function createGridTex() {
-      const c = document.createElement('canvas'); c.width = 128; c.height = 128;
-      const ctx = c.getContext('2d');
-      ctx.fillStyle = '#111'; ctx.fillRect(0,0,128,128);
-      ctx.strokeStyle = '#222'; ctx.lineWidth = 2;
-      ctx.strokeRect(0,0,128,128);
-      return new THREE.CanvasTexture(c);
-    }
-    const gridTex = createGridTex(); gridTex.wrapS = THREE.RepeatWrapping; gridTex.wrapT = THREE.RepeatWrapping; gridTex.repeat.set(40, 40);
-
-    const floorGeo = new THREE.PlaneGeometry(100, 100);
-    const floorMat = new THREE.MeshStandardMaterial({ map: gridTex, roughness: 0.8, metalness: 0.2 });
-    const floor = new THREE.Mesh(floorGeo, floorMat);
-    floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true;
-    scene.add(floor);
-
-    const collidables = [];
-    function createWall(x, z, w, h, d, color = 0x2a2a35) {
-      const g = new THREE.BoxGeometry(w, h, d);
-      const m = new THREE.MeshStandardMaterial({ color: color, roughness: 0.7 });
-      const mesh = new THREE.Mesh(g, m);
-      mesh.position.set(x, h/2, z); mesh.castShadow = true; mesh.receiveShadow = true;
-      scene.add(mesh);
-      collidables.push(mesh);
-    }
-    
-    // 테두리 벽
-    createWall(0, -50, 100, 15, 1);
-    createWall(0, 50, 100, 15, 1);
-    createWall(-50, 0, 1, 15, 100);
-    createWall(50, 0, 1, 15, 100);
-    // 중앙 엄폐물들
-    createWall(0, 0, 2, 5, 20);
-    createWall(-15, 10, 10, 6, 2);
-    createWall(15, -10, 10, 6, 2);
-    createWall(-20, -20, 4, 8, 4);
-    createWall(20, 20, 4, 8, 4);
-    createWall(0, 25, 15, 4, 2);
-
-    /* =========================================
-       2. 피어투피어 연결 (PeerJS) 및 AI 변수
-       ========================================= */
-    const PEER_PREFIX = "rival_portal_fps_2025_";
-    let peer, conn, isHost = false, isAiMode = false;
-    let enemyReady = false, gameStarted = false;
-
-    // AI 관련 상태
-    let aiPlayer = { x: 0, y: 1.5, z: 20, rot: 0, hp: 100, lastShootTime: 0, targetX: 0, targetZ: 0, state: 'idle', stateTimer: 0 };
-    
-    // 플레이어 기본 상태
-    const player = {
-      x: 0, y: 1.5, z: -20, vx: 0, vy: 0, vz: 0, pitch: 0, yaw: 0,
-      hp: 100, maxHp: 100, shield: 100, maxShield: 100,
-      score: 0, enemyScore: 0,
-      isInvincible: false, isStealth: false, isInfAmmo: false, isSpeedBoost: false, isLowGravity: false,
-      shieldItems: 1, potionItems: 1
-    };
-
-    const keys = {};
-    window.addEventListener('keydown', e => { keys[e.code] = true; });
-    window.addEventListener('keyup', e => { keys[e.code] = false; });
-
-    /* =========================================
-       2-1. 방 만들기 / 참여 로직 (새로운 팀코드 방식)
-       ========================================= */
-    function createRoom() {
-      isAiMode = false;
-      
-      const code = Math.floor(1000 + Math.random() * 9000).toString();
-      
-      document.getElementById('generated-code').innerText = code;
-      document.getElementById('room-code-display').style.display = 'block';
-      document.getElementById('code-status-msg').innerText = "⏳ 상대방의 접속을 대기 중입니다...";
-      document.getElementById('code-status-msg').style.color = "#00ffcc";
-
-      const targetId = PEER_PREFIX + code;
-      isHost = true;
-      
-      if (peer) peer.destroy();
-      peer = new Peer(targetId);
-
-      peer.on('open', () => {
-        console.log("호스트 방 생성 완료:", code);
-      });
-
-      peer.on('connection', connection => { 
-        conn = connection; 
-        setupDataListener(); 
-      });
-
-      peer.on('error', err => {
-        console.error(err);
-        document.getElementById('code-status-msg').innerText = "❌ 방 생성에 실패했습니다. 다시 시도해 주세요.";
-        document.getElementById('code-status-msg').style.color = "#ff0055";
-      });
+    // 4자리 임의의 숫자 코드 생성 함수
+    function makeRandomCode() {
+      return Math.floor(1000 + Math.random() * 9000).toString();
     }
 
-    function joinRoom() {
-      const inputVal = document.getElementById('input-team-code').value.trim();
+    // [방장 역할] 방 생성 버튼 이벤트
+    document.getElementById('btn-make-room').addEventListener('click', () => {
+      const generatedCode = makeRandomCode();
       
-      if (inputVal.length !== 4) {
-        document.getElementById('code-status-msg').innerText = "⚠️ 4자리 숫자로 된 팀코드를 정확히 입력하세요!";
-        document.getElementById('code-status-msg').style.color = "#ffaa00";
+      // PeerJS 클라우드 서버에 고유 ID로 등록 (사설 IP 우회)
+      peer = new Peer(ROOM_PREFIX + generatedCode);
+
+      document.getElementById('btn-make-room').disabled = true;
+      document.getElementById('btn-make-room').innerText = "접속 대기 중...";
+
+      peer.on('open', (id) => {
+        console.log("PeerJS 클라우드 방 생성 성공 ID:", id);
+        document.getElementById('room-code-area').style.display = 'block';
+        document.getElementById('txt-room-code').innerText = generatedCode;
+      });
+
+      // 게스트가 4자리 코드로 접속을 시도하여 나에게 도달했을 때
+      peer.on('connection', (incomingConn) => {
+        conn = incomingConn;
+        startMultiplayerSession();
+      });
+
+      peer.on('error', (err) => {
+        alert("방 생성 실패: 이미 사용 중인 코드이거나 일시적인 네트워크 오류입니다.");
+        location.reload();
+      });
+    });
+
+    // [게스트 역할] 방 참가 버튼 이벤트
+    document.getElementById('btn-enter-room').addEventListener('click', () => {
+      const inputCode = document.getElementById('input-room-code').value.trim();
+      
+      if (inputCode.length !== 4 || isNaN(inputCode)) {
+        alert("정확한 숫자 4자리를 입력해 주세요.");
         return;
       }
-      
-      isAiMode = isHost = false; 
-      document.getElementById('code-status-msg').innerText = `⏳ 방 [ ${inputVal} ]에 접속을 시도 중입니다...`;
-      document.getElementById('code-status-msg').style.color = "#00bfff";
-      
-      if (peer) peer.destroy();
-      peer = new Peer(); 
-      
-      peer.on('open', () => { 
-        conn = peer.connect(PEER_PREFIX + inputVal); 
-        setupDataListener(); 
+
+      // 게스트는 랜덤 ID로 클라우드 접속 후, 방장의 4자리 코드로 연결 요청
+      peer = new Peer();
+
+      document.getElementById('btn-enter-room').disabled = true;
+      document.getElementById('btn-enter-room').innerText = "방 찾는 중...";
+
+      peer.on('open', (id) => {
+        console.log("게스트 클라이언트 생성 성공. 방장 연결 시도...");
+        conn = peer.connect(ROOM_PREFIX + inputCode);
+        startMultiplayerSession();
       });
 
-      peer.on('error', err => {
-        console.error(err);
-        document.getElementById('code-status-msg').innerText = "❌ 접속 실패. 코드가 올바른지, 혹은 방이 아직 열려있는지 확인하세요.";
-        document.getElementById('code-status-msg').style.color = "#ff0055";
+      peer.on('error', (err) => {
+        alert("연결 중 문제가 발생했습니다.");
+        location.reload();
       });
-    }
+    });
 
-    function startAiMode() {
-      isAiMode = true; isHost = true;
-      enemyReady = true;
-      startGame();
-    }
-
-    function setupDataListener() {
+    // P2P 연결 성공 후 인게임 진입 처리
+    function startMultiplayerSession() {
       conn.on('open', () => {
-        document.getElementById('code-status-msg').innerText = "✅ 연결 성공! 게임을 준비합니다.";
-        document.getElementById('code-status-msg').style.color = "#00ff00";
-        enemyReady = true;
-        conn.send({ type: 'ready' });
-        if (isHost && enemyReady) startGame();
+        console.log("💥 상대방과 P2P 직통 연결 성공!");
+        
+        // 메인 로비 UI 완전히 숨기고 인게임 HUD 활성화
+        document.getElementById('main-lobby-layer').style.display = 'none';
+        document.getElementById('score-board').style.display = 'block';
+        document.getElementById('crosshair').style.display = 'block';
+        document.getElementById('controls-tip').style.display = 'block';
+        document.getElementById('hud-bottom-left').style.display = 'block';
+
+        // 포인터 락(마우스 잠금) 및 Three.js 메인 루프 실행 코드 연결 위치
+        initGameEngine();
       });
-      conn.on('data', data => {
-        if (data.type === 'ready') { enemyReady = true; if (isHost) startGame(); }
-        else if (data.type === 'start') { startGame(); }
-        else if (data.type === 'update') {
-          enemyMesh.position.set(data.x, data.y, data.z);
-          enemyMesh.rotation.y = data.rot;
-          enemyMesh.material.opacity = data.stealth ? 0.2 : 1;
-          player.enemyScore = data.score;
-          document.getElementById('enemy-score').innerText = player.enemyScore;
-        }
-        else if (data.type === 'hit') {
-          if (!player.isInvincible) {
-            applyDamage(data.dmg);
-            showFlash('#ff0000');
-          }
-        }
-        else if (data.type === 'portal') {
-          createPortalEffect(data.x, data.y, data.z, data.color);
-        }
-        else if (data.type === 'shield_deployed') {
-          deployDeployableShield(data.x, data.y, data.z, data.rot, true);
-        }
-        else if (data.type === 'potion_thrown') {
-          createExplosion(data.x, data.y, data.z, 0x00ffcc, true);
-        }
+
+      // 실시간 데이터 수신 (상대방 좌표, 총기 발사, 포탈 생성 상태 등)
+      conn.on('data', (data) => {
+        console.log("수신된 게임 데이터:", data);
+      });
+
+      conn.on('close', () => {
+        alert("상대 플레이어와 연결이 끊어졌습니다.");
+        location.reload();
       });
     }
 
-    /* =========================================
-       3. 무기 시스템 및 투사체, 포탈 이펙트
-       ========================================= */
-    const WEAPONS = {
-      RIFLE: { name: '기본 소총', dmg: 10, speed: 80, ammo: 30, maxAmmo: 30, fireRate: 150, reload: 1500, type: 'bullet', recoil: 0.02, auto: true },
-      SNIPER: { name: '스나이퍼', dmg: 50, speed: 150, ammo: 5, maxAmmo: 5, fireRate: 1200, reload: 2500, type: 'bullet', recoil: 0.1, auto: false },
-      SHOTGUN: { name: '샷건', dmg: 8, speed: 60, ammo: 8, maxAmmo: 8, fireRate: 800, reload: 2000, type: 'spread', recoil: 0.06, auto: false },
-      PORTAL_GUN: { name: '포탈건', dmg: 0, speed: 100, ammo: Infinity, maxAmmo: Infinity, fireRate: 500, reload: 0, type: 'portal', recoil: 0, auto: false }
-    };
-    
-    let currentWeaponKey = 'RIFLE';
-    let previousWeaponKey = 'RIFLE'; // 포탈건 전환을 위한 저장용
-    let lastFireTime = 0;
-    let isReloading = false;
-    const bullets = [];
-
-    // 포탈 위치 상태
-    let bluePortal = null;
-    let redPortal = null;
-    
-    // 임시 무기 모델
-    const gunGeo = new THREE.BoxGeometry(0.1, 0.1, 0.4);
-    const gunMat = new THREE.MeshStandardMaterial({ color: 0x555566 });
-    const gunMesh = new THREE.Mesh(gunGeo, gunMat);
-    gunMesh.position.set(0.2, -0.2, -0.4);
-    camera.add(gunMesh);
-    scene.add(camera);
-
-    function createBulletMesh(color) {
-      const bGeo = new THREE.BoxGeometry(0.05, 0.05, 0.2);
-      const bMat = new THREE.MeshBasicMaterial({ color: color });
-      return new THREE.Mesh(bGeo, bMat);
-    }
-
-    function createPortalEffect(x, y, z, colorStr) {
-      const isBlue = colorStr === 'blue';
-      const colorHex = isBlue ? 0x0055ff : 0xff5500;
+    // Three.js 게임 실행용 초기화 함수
+    function initGameEngine() {
+      console.log("Three.js FPS 월드 로딩 시작...");
       
-      const pGeo = new THREE.TorusGeometry(1, 0.1, 8, 24);
-      const pMat = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.8 });
-      const pMesh = new THREE.Mesh(pGeo, pMat);
-      pMesh.position.set(x, y + 1, z);
-      pMesh.lookAt(camera.position); // 간단하게 항상 카메라를 보게 설정 (임시)
-      
-      // 기존 포탈 교체
-      if (isBlue) {
-        if (bluePortal) scene.remove(bluePortal.mesh);
-        bluePortal = { mesh: pMesh, x, y, z };
-      } else {
-        if (redPortal) scene.remove(redPortal.mesh);
-        redPortal = { mesh: pMesh, x, y, z };
-      }
-      
-      scene.add(pMesh);
-    }
-
-    function fireWeapon(isRightClick = false) {
-      const now = Date.now();
-      const w = WEAPONS[currentWeaponKey];
-      
-      if (isReloading || now - lastFireTime < w.fireRate) return;
-      if (w.ammo <= 0 && !player.isInfAmmo) { reloadWeapon(); return; }
-
-      lastFireTime = now;
-      if (!player.isInfAmmo) {
-        w.ammo--;
-        updateHud();
-      }
-
-      // 반동
-      player.pitch += w.recoil;
-
-      const dir = new THREE.Vector3(0, 0, -1);
-      dir.applyQuaternion(camera.quaternion);
-
-      // 포탈건 특수 로직
-      if (currentWeaponKey === 'PORTAL_GUN') {
-        // 우클릭: 파란 포탈, 좌클릭: 빨간 포탈 발사 (실제 발사체 없이 레이캐스트로 벽에 즉시 생성)
-        const raycaster = new THREE.Raycaster(camera.position, dir);
-        const intersects = raycaster.intersectObjects(collidables);
-        if (intersects.length > 0) {
-          const p = intersects[0].point;
-          const color = isRightClick ? 'blue' : 'red';
-          createPortalEffect(p.x, p.y, p.z, color);
-          if(conn && conn.open) conn.send({ type: 'portal', x: p.x, y: p.y, z: p.z, color: color });
-        }
-        return;
-      }
-
-      // 일반 무기 발사체 생성
-      if (w.type === 'spread') {
-        for(let i=0; i<5; i++) {
-          const spreadDir = dir.clone().add(new THREE.Vector3((Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1, (Math.random()-0.5)*0.1)).normalize();
-          spawnBullet(spreadDir, w);
-        }
-      } else {
-        spawnBullet(dir, w);
-      }
-    }
-
-    function spawnBullet(direction, weaponStat) {
-      const color = (weaponStat.name === '스나이퍼') ? 0xff00ff : 0x00ffcc;
-      const bMesh = createBulletMesh(color);
-      bMesh.position.copy(camera.position);
-      bMesh.quaternion.copy(camera.quaternion);
-      scene.add(bMesh);
-      bullets.push({ mesh: bMesh, dir: direction, speed: weaponStat.speed, dmg: weaponStat.dmg, life: 100 });
-    }
-
-    function reloadWeapon() {
-      const w = WEAPONS[currentWeaponKey];
-      if (w.ammo === w.maxAmmo || isReloading) return;
-      isReloading = true;
-      showNotice("재장전 중...", w.reload);
-      setTimeout(() => {
-        w.ammo = w.maxAmmo;
-        isReloading = false;
-        updateHud();
-      }, w.reload);
-    }
-
-    /* =========================================
-       4. 아이템 (방패, 대형 투척물)
-       ========================================= */
-    const deployables = [];
-    function useShield() {
-      if (player.shieldItems <= 0) return;
-      player.shieldItems--; updateHud();
-      const fwd = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
-      fwd.y = 0; fwd.normalize();
-      const sPos = camera.position.clone().add(fwd.multiplyScalar(2));
-      sPos.y = 0.5;
-      deployDeployableShield(sPos.x, sPos.y, sPos.z, camera.rotation.y, false);
-      if(conn && conn.open) conn.send({ type: 'shield_deployed', x: sPos.x, y: sPos.y, z: sPos.z, rot: camera.rotation.y });
-    }
-    
-    function deployDeployableShield(x,y,z,rot, isEnemy) {
-      const sGeo = new THREE.BoxGeometry(4, 3, 0.5);
-      const sMat = new THREE.MeshStandardMaterial({ color: isEnemy ? 0xff0000 : 0x00ffff, transparent:true, opacity:0.6 });
-      const sMesh = new THREE.Mesh(sGeo, sMat);
-      sMesh.position.set(x,y,z);
-      sMesh.rotation.y = rot;
-      scene.add(sMesh);
-      collidables.push(sMesh);
-      deployables.push({ mesh: sMesh, life: 1000 }); // 10초
-    }
-
-    function usePotion() {
-      if (player.potionItems <= 0) return;
-      player.potionItems--; updateHud();
-      const fwd = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
-      const pPos = camera.position.clone().add(fwd.multiplyScalar(15));
-      createExplosion(pPos.x, pPos.y, pPos.z, 0xffaa00, false);
-      if(conn && conn.open) conn.send({ type: 'potion_thrown', x: pPos.x, y: pPos.y, z: pPos.z });
-      
-      // 적 데미지 체크 (거리)
-      const dist = pPos.distanceTo(enemyMesh.position);
-      if (dist < 8) {
-        if(!isAiMode && conn && conn.open) conn.send({ type: 'hit', dmg: 40 });
-        else if (isAiMode) { aiPlayer.hp -= 40; }
-      }
-    }
-
-    function createExplosion(x,y,z, color, isEnemy) {
-      const eGeo = new THREE.SphereGeometry(8, 16, 16);
-      const eMat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.5, wireframe: true });
-      const eMesh = new THREE.Mesh(eGeo, eMat);
-      eMesh.position.set(x,y,z);
-      scene.add(eMesh);
-      let s = 1;
-      const t = setInterval(() => {
-        s += 0.2; eMesh.scale.set(s,s,s); eMat.opacity -= 0.05;
-        if(eMat.opacity <= 0) { clearInterval(t); scene.remove(eMesh); }
-      }, 30);
-      if (isEnemy) {
-        const dist = camera.position.distanceTo(eMesh.position);
-        if (dist < 8 && !player.isInvincible) {
-          applyDamage(30); showFlash('#ff5500');
-        }
-      }
-    }
-
-    /* =========================================
-       5. 게임 로직 (조작, HUD, 피해)
-       ========================================= */
-    const enemyGeo = new THREE.BoxGeometry(0.8, 1.8, 0.8);
-    const enemyMat = new THREE.MeshStandardMaterial({ color: 0xff0055 });
-    const enemyMesh = new THREE.Mesh(enemyGeo, enemyMat);
-    scene.add(enemyMesh);
-    enemyMesh.position.set(0, -100, 0); // 시작 전 숨김
-
-    function startGame() {
-      document.getElementById('ui-layer').style.display = 'none';
-      document.getElementById('score-board').style.display = 'block';
-      document.getElementById('hud-bottom-left').style.display = 'block';
-      document.getElementById('controls-tip').style.display = 'block';
-      
-      if (isHost && !isAiMode && conn) conn.send({ type: 'start' });
-      
+      // 마우스 포인터 락
+      document.body.requestPointerLock = document.body.requestPointerLock || document.body.mozRequestPointerLock;
       document.body.requestPointerLock();
-      player.x = (isHost ? 20 : -20) + (Math.random()*5);
-      player.z = (isHost ? 20 : -20) + (Math.random()*5);
-      camera.position.set(player.x, player.y, player.z);
-      
-      if (isAiMode) {
-        enemyMesh.position.set(aiPlayer.x, aiPlayer.y, aiPlayer.z);
-      }
-      
-      gameStarted = true;
-      updateHud();
-      requestAnimationFrame(gameLoop);
     }
 
-    function applyDamage(amt) {
-      if (player.shield > 0) {
-        player.shield -= amt;
-        if (player.shield < 0) {
-          player.hp += player.shield;
-          player.shield = 0;
-        }
-      } else {
-        player.hp -= amt;
-      }
-      if (player.hp <= 0) respawn();
-      updateHud();
-    }
-
-    function respawn() {
-      player.enemyScore++;
-      document.getElementById('enemy-score').innerText = player.enemyScore;
-      player.hp = player.maxHp;
-      player.shield = player.maxShield;
-      player.x = (Math.random()-0.5)*80;
-      player.z = (Math.random()-0.5)*80;
-      player.y = 10; // 낙하 리스폰
-      camera.position.set(player.x, player.y, player.z);
-      showNotice("사망했습니다! 부활합니다.", 2000);
-      updateHud();
-    }
-
-    function updateHud() {
-      const hpRatio = Math.max(0, player.hp / player.maxHp) * 100;
-      document.getElementById('hud-hp-bar').style.width = hpRatio + '%';
-      document.getElementById('hud-hp-text').innerText = `${Math.floor(player.hp)} / ${player.maxHp}`;
-      
-      const shieldRatio = Math.max(0, player.shield / player.maxShield) * 100;
-      document.getElementById('hud-shield-bar').style.width = shieldRatio + '%';
-      document.getElementById('hud-shield-text').innerText = `${Math.floor(player.shield)} / ${player.maxShield}`;
-      
-      document.getElementById('hud-weapon').innerText = WEAPONS[currentWeaponKey].name;
-      document.getElementById('hud-ammo').innerText = player.isInfAmmo ? "∞" : WEAPONS[currentWeaponKey].ammo;
-      document.getElementById('hud-max-ammo').innerText = player.isInfAmmo ? "∞" : WEAPONS[currentWeaponKey].maxAmmo;
-
-      document.getElementById('hud-shield-item').innerText = player.shieldItems;
-      document.getElementById('hud-pot-item').innerText = player.potionItems;
-
-      document.getElementById('my-score').innerText = player.score;
-
-      // 상태 태그
-      document.getElementById('invincible-tag').style.display = player.isInvincible ? 'block' : 'none';
-      document.getElementById('stealth-tag').style.display = player.isStealth ? 'block' : 'none';
-      document.getElementById('infammo-tag').style.display = player.isInfAmmo ? 'block' : 'none';
-      document.getElementById('speed-tag').style.display = player.isSpeedBoost ? 'block' : 'none';
-    }
-
-    function showNotice(msg, time) {
-      const n = document.getElementById('notice-overlay');
-      n.innerText = msg; n.style.display = 'block';
-      setTimeout(() => { n.style.display = 'none'; }, time);
-    }
-    function showFlash(color) {
-      const f = document.getElementById('flash-overlay');
-      f.style.background = color; f.style.opacity = '0.5';
-      setTimeout(() => { f.style.opacity = '0'; }, 100);
-    }
-
-    /* =========================================
-       6. 마우스 / 키보드 이벤트 (Q메뉴, 조작)
-       ========================================= */
-    document.addEventListener('mousemove', e => {
-      if (document.pointerLockElement === document.body && gameStarted) {
-        player.yaw -= e.movementX * 0.002;
-        player.pitch -= e.movementY * 0.002;
-        player.pitch = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, player.pitch));
-      }
-    });
-
-    document.addEventListener('mousedown', e => {
-      if (document.pointerLockElement !== document.body && gameStarted && document.getElementById('ingame-menu').style.display === 'none') {
-        document.body.requestPointerLock(); return;
-      }
-      if (!gameStarted) return;
-      if (e.button === 0) fireWeapon(false);
-      if (e.button === 2) {
-        if (currentWeaponKey === 'PORTAL_GUN') {
-          fireWeapon(true); // 우클릭 파란포탈
-        } else if (currentWeaponKey === 'SNIPER') {
-          document.getElementById('scope-overlay').style.display = 'block';
-          camera.fov = 20; camera.updateProjectionMatrix();
-        }
-      }
-    });
-    
-    document.addEventListener('mouseup', e => {
-      if (e.button === 2 && currentWeaponKey === 'SNIPER') {
-        document.getElementById('scope-overlay').style.display = 'none';
-        camera.fov = 75; camera.updateProjectionMatrix();
-      }
-    });
-
-    // 키입력 1회 감지
-    window.addEventListener('keydown', e => {
-      if (!gameStarted) return;
-      if (e.code === 'KeyR') reloadWeapon();
-      if (e.code === 'KeyF') useShield();
-      if (e.code === 'KeyG') usePotion();
-      
-      // 무기 교체 로직 (E키: 포탈건 ↔ 이전무기 토글)
-      if (e.code === 'KeyE') {
-        if (currentWeaponKey !== 'PORTAL_GUN') {
-          previousWeaponKey = currentWeaponKey;
-          currentWeaponKey = 'PORTAL_GUN';
-          gunMat.color.setHex(0xffffff); // 포탈건은 하얀색으로 변경
-        } else {
-          currentWeaponKey = previousWeaponKey;
-          gunMat.color.setHex(0x555566);
-        }
-        document.getElementById('scope-overlay').style.display = 'none';
-        camera.fov = 75; camera.updateProjectionMatrix();
-        updateHud();
-      }
-      
-      if (e.code === 'KeyQ') {
+    // Q키 누르면 인게임 메뉴 켜고 끄기 기본 구현
+    window.addEventListener('keydown', (e) => {
+      if (e.key.toLowerCase() === 'q') {
         const menu = document.getElementById('ingame-menu');
-        const ui = document.getElementById('ui-layer');
-        if (document.pointerLockElement) {
-          document.exitPointerLock();
-          ui.style.display = 'flex'; menu.style.display = 'block';
-        } else {
-          document.body.requestPointerLock();
-          ui.style.display = 'none'; menu.style.display = 'none';
+        if (menu.style.display === 'block') {
+          menu.style.display = 'none';
+          document.body.style.cursor = 'none';
+        } else if (document.getElementById('main-lobby-layer').style.display === 'none') {
+          menu.style.display = 'block';
+          document.body.style.cursor = 'default';
         }
       }
-    });
-
-    // 자동 소총 처리
-    setInterval(() => {
-      if (keys['Space'] && gameStarted && player.vy === 0) { player.vy = player.isLowGravity ? 0.3 : 0.2; }
-      if (keys['KeyC'] && WEAPONS[currentWeaponKey].auto && gameStarted) { fireWeapon(); }
-    }, 1000/60);
-
-    /* =========================================
-       7. 인게임 옵션 버튼 이벤트 (Q메뉴)
-       ========================================= */
-    function toggleBtnStyle(btnId, isActive) {
-      const btn = document.getElementById(btnId);
-      if (isActive) btn.classList.add('active');
-      else btn.classList.remove('active');
-    }
-    
-    document.getElementById('btn-opt-hp').onclick = () => { 
-      player.isInvincible = !player.isInvincible; 
-      toggleBtnStyle('btn-opt-hp', player.isInvincible); 
-      updateHud(); 
-    };
-    document.getElementById('btn-opt-ammo').onclick = () => { 
-      player.isInfAmmo = !player.isInfAmmo; 
-      toggleBtnStyle('btn-opt-ammo', player.isInfAmmo); 
-      updateHud(); 
-    };
-    document.getElementById('btn-opt-weapon').onclick = () => {
-      const wList = ['RIFLE', 'SNIPER', 'SHOTGUN'];
-      currentWeaponKey = wList[Math.floor(Math.random() * wList.length)];
-      previousWeaponKey = currentWeaponKey;
-      gunMat.color.setHex(0x555566);
-      showNotice(`${WEAPONS[currentWeaponKey].name} 장착!`, 1500);
-      updateHud();
-    };
-    document.getElementById('btn-opt-mode').onclick = () => {
-      player.isSpeedBoost = !player.isSpeedBoost;
-      toggleBtnStyle('btn-opt-mode', player.isSpeedBoost);
-      updateHud();
-    };
-    document.getElementById('btn-opt-gravity').onclick = () => {
-      player.isLowGravity = !player.isLowGravity;
-      toggleBtnStyle('btn-opt-gravity', player.isLowGravity);
-    };
-
-    function resumeGame() {
-      document.body.requestPointerLock();
-      document.getElementById('ui-layer').style.display = 'none'; 
-      document.getElementById('ingame-menu').style.display = 'none';
-    }
-
-    /* =========================================
-       8. 메인 게임 루프 (이동, 물리, 네트워킹)
-       ========================================= */
-    const speedBase = 0.2;
-    const gravity = 0.008;
-
-    function gameLoop() {
-      if (!gameStarted) return;
-      
-      // 부드러운 카메라 회전
-      const targetQuat = new THREE.Quaternion();
-      targetQuat.setFromEuler(new THREE.Euler(player.pitch, player.yaw, 0, 'YXZ'));
-      camera.quaternion.slerp(targetQuat, 0.4);
-
-      // 플레이어 이동 로직
-      let moveSpd = speedBase * (player.isSpeedBoost ? 2 : 1);
-      const fwd = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion); fwd.y = 0; fwd.normalize();
-      const right = new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion); right.y = 0; right.normalize();
-      
-      player.vx *= 0.8; player.vz *= 0.8; // 마찰력
-      
-      if (keys['KeyW']) { player.vx += fwd.x * moveSpd; player.vz += fwd.z * moveSpd; }
-      if (keys['KeyS']) { player.vx -= fwd.x * moveSpd; player.vz -= fwd.z * moveSpd; }
-      if (keys['KeyA']) { player.vx -= right.x * moveSpd; player.vz -= right.z * moveSpd; }
-      if (keys['KeyD']) { player.vx += right.x * moveSpd; player.vz += right.z * moveSpd; }
-
-      // 중력 및 점프
-      player.vy -= (player.isLowGravity ? gravity * 0.3 : gravity);
-      player.y += player.vy;
-      if (player.y < 1.5) { player.y = 1.5; player.vy = 0; }
-
-      // 포탈 이동 로직 (플레이어 -> 포탈)
-      if (bluePortal && redPortal) {
-        // 플레이어가 파란 포탈 근처에 가면 빨간 포탈로 이동
-        const distBlue = new THREE.Vector3(player.x, player.y, player.z).distanceTo(new THREE.Vector3(bluePortal.x, bluePortal.y, bluePortal.z));
-        if (distBlue < 2) {
-          player.x = redPortal.x; player.y = redPortal.y + 1; player.z = redPortal.z;
-          showFlash('#ffffff');
-        }
-        // 플레이어가 빨간 포탈 근처에 가면 파란 포탈로 이동
-        const distRed = new THREE.Vector3(player.x, player.y, player.z).distanceTo(new THREE.Vector3(redPortal.x, redPortal.y, redPortal.z));
-        if (distRed < 2) {
-          player.x = bluePortal.x; player.y = bluePortal.y + 1; player.z = bluePortal.z;
-          showFlash('#ffffff');
-        }
-      }
-
-      // 위치 적용 및 충돌(단순)
-      player.x += player.vx; player.z += player.vz;
-      
-      // 맵 경계 제한
-      player.x = Math.max(-48, Math.min(48, player.x));
-      player.z = Math.max(-48, Math.min(48, player.z));
-
-      camera.position.set(player.x, player.y, player.z);
-
-      // 총기 흔들림 (Bobbing)
-      if (Math.abs(player.vx) > 0.01 || Math.abs(player.vz) > 0.01) {
-        gunMesh.position.y = -0.2 + Math.sin(Date.now()*0.01)*0.01;
-      } else {
-        gunMesh.position.y = -0.2;
-      }
-
-      // 투사체 업데이트
-      for (let i = bullets.length - 1; i >= 0; i--) {
-        const b = bullets[i];
-        b.mesh.position.add(b.dir.clone().multiplyScalar(b.speed * 0.016));
-        b.life--;
-        
-        // 포탈 통과 로직 (투사체)
-        if (bluePortal && redPortal) {
-          if (b.mesh.position.distanceTo(new THREE.Vector3(bluePortal.x, bluePortal.y, bluePortal.z)) < 2) {
-            b.mesh.position.set(redPortal.x, redPortal.y, redPortal.z);
-          } else if (b.mesh.position.distanceTo(new THREE.Vector3(redPortal.x, redPortal.y, redPortal.z)) < 2) {
-            b.mesh.position.set(bluePortal.x, bluePortal.y, bluePortal.z);
-          }
-        }
-
-        // 충돌 판정 (적/방패)
-        let hit = false;
-        if (b.mesh.position.distanceTo(enemyMesh.position) < 1.5) {
-          hit = true;
-          if (isAiMode) { aiPlayer.hp -= b.dmg; checkAiDeath(); }
-          else if (conn && conn.open) { conn.send({ type: 'hit', dmg: b.dmg }); player.score += 10; updateHud(); }
-        }
-        
-        // 투사체 제거
-        if (hit || b.life <= 0 || b.mesh.position.y < 0) {
-          scene.remove(b.mesh);
-          bullets.splice(i, 1);
-        }
-      }
-
-      // 아이템 생명주기 관리
-      for (let i = deployables.length - 1; i >= 0; i--) {
-        deployables[i].life--;
-        if (deployables[i].life <= 0) {
-          scene.remove(deployables[i].mesh);
-          const idx = collidables.indexOf(deployables[i].mesh);
-          if (idx > -1) collidables.splice(idx, 1);
-          deployables.splice(i, 1);
-        }
-      }
-
-      // AI 로직
-      if (isAiMode) {
-        updateAi();
-      }
-
-      // 네트워크 동기화
-      if (!isAiMode && conn && conn.open) {
-        conn.send({ type: 'update', x: player.x, y: player.y, z: player.z, rot: camera.rotation.y, score: player.score, stealth: player.isStealth });
-      }
-
-      renderer.render(scene, camera);
-      requestAnimationFrame(gameLoop);
-    }
-
-    // 간단한 AI 행동
-    function updateAi() {
-      aiPlayer.stateTimer--;
-      if (aiPlayer.stateTimer <= 0) {
-        if (Math.random() > 0.5) {
-          aiPlayer.state = 'move';
-          aiPlayer.targetX = (Math.random()-0.5)*80;
-          aiPlayer.targetZ = (Math.random()-0.5)*80;
-          aiPlayer.stateTimer = 100 + Math.random()*100;
-        } else {
-          aiPlayer.state = 'idle';
-          aiPlayer.stateTimer = 50;
-        }
-      }
-      
-      const aiPos = new THREE.Vector3(aiPlayer.x, aiPlayer.y, aiPlayer.z);
-      const distToPlayer = aiPos.distanceTo(camera.position);
-
-      if (aiPlayer.state === 'move') {
-        const dirX = aiPlayer.targetX - aiPlayer.x;
-        const dirZ = aiPlayer.targetZ - aiPlayer.z;
-        const len = Math.sqrt(dirX*dirX + dirZ*dirZ);
-        if(len > 1) {
-          aiPlayer.x += (dirX/len) * speedBase * 0.5;
-          aiPlayer.z += (dirZ/len) * speedBase * 0.5;
-        }
-      }
-      
-      // AI 방향(플레이어 응시)
-      aiPlayer.rot = Math.atan2(camera.position.x - aiPlayer.x, camera.position.z - aiPlayer.z);
-      
-      // AI 사격
-      if (distToPlayer < 40 && Date.now() - aiPlayer.lastShootTime > 1500) {
-        aiPlayer.lastShootTime = Date.now();
-        const bMesh = createBulletMesh(0xff0055);
-        bMesh.position.copy(aiPos); bMesh.position.y += 0.5;
-        const dir = camera.position.clone().sub(aiPos).normalize();
-        scene.add(bMesh);
-        bullets.push({ mesh: bMesh, dir: dir, speed: 60, dmg: 10, life: 100 });
-      }
-      
-      enemyMesh.position.set(aiPlayer.x, aiPlayer.y, aiPlayer.z);
-      enemyMesh.rotation.y = aiPlayer.rot;
-    }
-
-    function checkAiDeath() {
-      if (aiPlayer.hp <= 0) {
-        player.score += 100; updateHud();
-        aiPlayer.hp = 100;
-        aiPlayer.x = (Math.random()-0.5)*80;
-        aiPlayer.z = (Math.random()-0.5)*80;
-        showNotice("AI를 처치했습니다!", 1500);
-      }
-    }
-
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
     });
   </script>
 </body>
