@@ -196,7 +196,21 @@
   </div>
 
   <script>
-    const PEER_PREFIX = "rival3d-v15-float-";
+    const PEER_PREFIX = "rival3d-v16-p2p-";
+    
+    // 외부 컴퓨터 간 연결 확율을 높여주는 구글 공용 STUN 서버 설정
+    const PEER_CONFIG = {
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' }
+        ]
+      }
+    };
+
     let peer = null, conn = null;
     let isHost = false, isAiMode = false;
 
@@ -839,7 +853,6 @@
           playerVelY += gravity;
         }
 
-        /* 맵 바깥 추락(낙사) 감지 로직 */
         if (localPlayer.position.y < -15) {
           takeDamage(100);
         }
@@ -868,7 +881,6 @@
           }
         }
 
-        /* 눈높이 카메라 조정 (+0.6) */
         camera.position.set(localPlayer.position.x, localPlayer.position.y + 0.6, localPlayer.position.z);
         camera.rotation.y = playerRotationY; camera.rotation.x = playerPitchX;
         
@@ -1329,23 +1341,59 @@
       document.getElementById('step-code').style.display = 'none'; document.getElementById('step-weapon').style.display = 'block';
     }
 
+    // [네트워크 기능 수정 영역]
     function createRoom() {
-      isAiMode = false; const code = Math.floor(1000 + Math.random() * 9000).toString();
-      document.getElementById('room-code-input').value = code; document.getElementById('code-status-msg').innerText = `발급된 코드: [ ${code} ] - 대기 중...`;
-      isHost = true; peer = new Peer(PEER_PREFIX + code); peer.on('connection', connection => { conn = connection; setupDataListener(); });
+      isAiMode = false;
+      const code = Math.floor(1000 + Math.random() * 9000).toString();
+      document.getElementById('room-code-input').value = code;
+      document.getElementById('code-status-msg').innerText = `방 등록 중... [ 코드: ${code} ]`;
+      isHost = true;
+
+      if (peer) peer.destroy();
+      peer = new Peer(PEER_PREFIX + code, PEER_CONFIG);
+
+      peer.on('open', (id) => {
+        document.getElementById('code-status-msg').innerText = `🟢 방 생성 완료! [ 코드: ${code} ] - 접속 대기 중...`;
+      });
+
+      peer.on('connection', connection => {
+        conn = connection;
+        setupDataListener();
+      });
+
+      peer.on('error', err => {
+        document.getElementById('code-status-msg').innerText = `❌ 네트워크 오류: ${err.type}`;
+      });
     }
 
     function joinRoom() {
       const code = document.getElementById('room-code-input').value.trim();
       if (code.length !== 4) return alert("4자리 코드를 입력하세요!");
-      isAiMode = isHost = false; document.getElementById('code-status-msg').innerText = "접속 시도 중...";
-      peer = new Peer(); peer.on('open', () => { conn = peer.connect(PEER_PREFIX + code); setupDataListener(); });
+      isAiMode = isHost = false;
+      document.getElementById('code-status-msg').innerText = "서버 접속 시도 중...";
+
+      if (peer) peer.destroy();
+      peer = new Peer(PEER_CONFIG);
+
+      peer.on('open', () => {
+        document.getElementById('code-status-msg').innerText = "상대방 방 찾는 중...";
+        conn = peer.connect(PEER_PREFIX + code, { reliable: true });
+        setupDataListener();
+      });
+
+      peer.on('error', err => {
+        document.getElementById('code-status-msg').innerText = "❌ 접속 실패: 방 코드가 없거나 방화벽으로 차단됨.";
+      });
     }
 
     function setupDataListener() {
+      if (!conn) return;
+
       conn.on('open', () => {
-        document.getElementById('hud-status').innerText = "🟢 상대방 연결됨"; document.getElementById('hud-status').style.color = "#00ffcc";
-        document.getElementById('step-code').style.display = 'none'; document.getElementById('step-weapon').style.display = 'block';
+        document.getElementById('hud-status').innerText = "🟢 상대방 연결됨"; 
+        document.getElementById('hud-status').style.color = "#00ffcc";
+        document.getElementById('step-code').style.display = 'none'; 
+        document.getElementById('step-weapon').style.display = 'block';
       });
 
       conn.on('data', data => {
@@ -1375,6 +1423,11 @@
             bluePortalPos = bluePortalMesh.position.clone();
           }
         }
+      });
+
+      conn.on('close', () => {
+        alert("상대방과의 연결이 끊어졌습니다.");
+        location.reload();
       });
     }
 
