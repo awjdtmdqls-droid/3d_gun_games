@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>3D 1v1 FPS Rival Shooter - Floating Jump & Portal Gun</title>
+  <title>3D 1v1 FPS Rival Shooter - Fixed</title>
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
@@ -41,7 +41,6 @@
     button.ai-btn { background: #ffaa00; color: #111; margin-top: 6px; }
     button.danger { background: #ff0055; color: #fff; }
 
-    /* ================= NEW HUD STYLING ================= */
     .top-scoreboard { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); background: rgba(15, 15, 20, 0.75); border: 1px solid rgba(0, 255, 204, 0.4); border-radius: 20px; padding: 6px 24px; color: #fff; font-size: 16px; font-weight: bold; text-shadow: 0 0 8px rgba(255, 170, 0, 0.6); z-index: 5; display: none; backdrop-filter: blur(6px); }
     .top-scoreboard span { color: #ffaa00; font-size: 18px; margin: 0 4px; }
 
@@ -65,7 +64,6 @@
     .weapon-name { font-weight: bold; font-size: 14px; color: #00ffcc; }
     .ammo-count { font-size: 16px; font-weight: bold; color: #fff; }
     .item-row { font-size: 11px; color: #aaa; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px; display: flex; justify-content: space-between; }
-    /* =================================================== */
 
     .crosshair { position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; border: 2px solid #00ffcc; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; display: none; z-index: 5; }
     #scope-overlay { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; display: none; z-index: 20; background: radial-gradient(circle at center, transparent 38%, rgba(5,5,5,0.92) 42%, rgba(0,0,0,1) 52%); }
@@ -100,12 +98,10 @@
     🎯 우클릭: 조준(파란포탈) | 💥 좌클릭: 사격(빨간포탈) | 🛡️ F키: 방패 | 🍾 G키: 대형 투척 | 💡 Q키: 메뉴
   </div>
 
-  <!-- 중앙 상단 스코어보드 -->
   <div id="score-board" class="top-scoreboard">
     🏆 Score: <span id="my-score">0</span> / <span id="enemy-score">0</span>
   </div>
 
-  <!-- 좌측 하단 개편된 HUD -->
   <div id="hud-bottom-left">
     <div class="status-tags-container">
       <div id="invincible-tag" class="status-tag">🛡️ 무적 상태</div>
@@ -139,7 +135,6 @@
   </div>
 
   <div class="ui-layer">
-    <!-- Step 1: Code Entry -->
     <div id="step-code" class="card interactive">
       <h2>1v1 FPS ARENA</h2>
       <p class="desc">부드러운 저중력 점프 & 커스텀 아이템 3D 전장!</p>
@@ -150,12 +145,10 @@
       <p id="code-status-msg" style="margin-top:8px; font-size:12px; color:#00ffcc;"></p>
     </div>
 
-    <!-- Step 2: Weapon Select UI -->
     <div id="step-weapon" class="card interactive" style="display: none;">
       <h2>1. 주무기 & 2. 보조/근접 무기 선택</h2>
       <p class="desc">주무기 선택</p>
       <div class="option-group">
-        <!-- 권총 연사 간격을 80ms로 변경하여 연사 소총(110ms)보다 빠르게 설정 -->
         <button class="option-btn active" onclick="highlightWeapon(this, '권총', 50, true, 80, 1, 22)">🔫 권총 (초고속 연사 / 데미지: 22)</button>
         <button class="option-btn" onclick="highlightWeapon(this, '연사 소총', 120, true, 110, 1, 13)">⚡ 연사 소총 (데미지: 13)</button>
         <button class="option-btn" onclick="highlightWeapon(this, '고속 기관총', 200, true, 65, 1, 8)">💥 고속 기관총 (데미지: 8)</button>
@@ -173,7 +166,6 @@
       <button class="action-btn" onclick="confirmWeaponStep()">다음 단계 (투척 무기) ➔</button>
     </div>
 
-    <!-- Step 3: Special Item Select UI -->
     <div id="step-item" class="card interactive" style="display: none;">
       <h2>특수 대형 투척 무기 선택</h2>
       <p class="desc">G키로 던질 대형 아이템 (쿨타임 8초)</p>
@@ -188,7 +180,6 @@
       <p id="ready-status-msg" style="margin-top:8px; font-size:12px; color:#ffaa00;"></p>
     </div>
 
-    <!-- Step 4: Game Over -->
     <div id="step-gameover" class="card interactive" style="display: none;">
       <h2 id="gameover-title" style="color: #ff0055;">GAME OVER</h2>
       <p id="gameover-desc" class="desc">결과를 확인하세요</p>
@@ -197,7 +188,6 @@
       <p id="rematch-status-msg" style="margin-top:10px; font-size:12px; color:#ffaa00;"></p>
     </div>
 
-    <!-- In-Game Menu (Q Key) -->
     <div id="ingame-menu" class="card interactive">
       <h2 style="color: #fff;">일시 정지</h2>
       <button class="action-btn" onclick="resumeGame()">▶️ 게임으로 돌아가기</button>
@@ -213,13 +203,23 @@
     let peer = null, conn = null;
     let isHost = false, isAiMode = false;
 
+    // PeerJS를 위한 STUN 서버 옵션 (외부 연결 실패 및 방 입장 오류 해결)
+    const PEER_CONFIG = {
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ]
+      }
+    };
+
     let isMyReady = false, isPeerReady = false;
     let isMyRematch = false, isPeerRematch = false;
     let isMenuRequested = false;
 
     let maxAmmo = 50;
     let initialWeapon = "권총", initialAmmo = 50, weaponBaseDmg = 22;
-    let isAutoWeapon = true, fireIntervalMs = 80; /* 권총 기본값을 연사 80ms로 수정 */
+    let isAutoWeapon = true, fireIntervalMs = 80;
     let myBulletCount = 1; 
 
     let selectedMeleeWeapon = "포탈건";
@@ -261,7 +261,6 @@
     const jumpPower = 0.15; 
     const keys = {};
 
-    /* 시드 기반 난수 생성기 (호스트/참가자 맵 동기화용) */
     let mapSeed = 12345;
     function mapRandom() {
       let x = Math.sin(mapSeed++) * 10000;
@@ -279,9 +278,9 @@
       scene.background = new THREE.Color(0x221c18);
       scene.fog = new THREE.FogExp2(0x221c18, 0.018);
 
+      // 카메라는 localPlayer의 자식(Child)으로 설정
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 1000);
       camera.rotation.order = 'YXZ';
-      scene.add(camera);
 
       renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
@@ -293,9 +292,14 @@
 
       buildMapTerrain();
 
+      // localPlayer 오브젝트
       localPlayer = new THREE.Group();
       localPlayer.position.set(isHost ? -15 : 15, 0.75, 0);
       scene.add(localPlayer);
+
+      // 카메라는 localPlayer의 높이(눈높이 0.4)에 장착
+      camera.position.set(0, 0.4, 0);
+      localPlayer.add(camera);
 
       gunGroup = new THREE.Group();
       camera.add(gunGroup);
@@ -511,7 +515,10 @@
           playerRotationY -= e.movementX * sensitivity;
           playerPitchX -= e.movementY * sensitivity;
           playerPitchX = Math.max(-1.4, Math.min(1.4, playerPitchX));
+
+          // 플레이어 Y축 회전 및 카메라 X축 회전 적용
           localPlayer.rotation.y = playerRotationY;
+          camera.rotation.x = playerPitchX;
         }
       });
 
@@ -531,7 +538,6 @@
        3. MAP TERRAIN & CUSTOM ITEM MESHES
        ========================================== */
     function buildMapTerrain() {
-      // 맵 난수 시드 초기화 (양쪽 클라이언트 동일 맵 보장)
       mapSeed = 12345;
 
       const floorGeo = new THREE.PlaneGeometry(60, 60, 48, 48);
@@ -557,7 +563,6 @@
         collidableObjects.push(mtn);
       });
 
-      // 맵 내 부쉬(풀숲) 생성 및 시드 기반 고정 위치 저장
       bushes = [];
       const bushGeo = new THREE.SphereGeometry(0.7, 8, 8);
       const bushMat = new THREE.MeshStandardMaterial({ color: 0x1e5631, roughness: 0.9 });
@@ -632,7 +637,10 @@
       const raycaster = new THREE.Raycaster();
       const dir = new THREE.Vector3();
       camera.getWorldDirection(dir);
-      raycaster.set(camera.position, dir);
+      
+      const camWorldPos = new THREE.Vector3();
+      camera.getWorldPosition(camWorldPos);
+      raycaster.set(camWorldPos, dir);
 
       const intersects = raycaster.intersectObjects(collidableObjects, true);
       if (intersects.length > 0) {
@@ -738,7 +746,6 @@
       }
     }
 
-    /* 회전된 벽 및 산 내부 끼임 방지 충돌 검사 */
     function checkWallCollision(px, pz) {
       const pRadius = 0.55;
       const pVec = new THREE.Vector3(px, localPlayer.position.y, pz);
@@ -756,7 +763,6 @@
         }
       }
 
-      // 산(Cone) 산속 파고들기 차단
       const mtnCorners = [{x: -24, z: -24}, {x: 24, z: -24}, {x: -24, z: 24}, {x: 24, z: 24}];
       for (let c of mtnCorners) {
         const dist = Math.hypot(px - c.x, pz - c.z);
@@ -861,6 +867,7 @@
           }
         }
 
+        // 부드러운 점프 처리
         if (keys['Space'] && isGrounded) { 
           playerVelY = jumpPower; 
           isGrounded = false; 
@@ -895,13 +902,13 @@
           }
         }
 
-        camera.position.set(localPlayer.position.x, localPlayer.position.y + 0.4, localPlayer.position.z);
-        camera.rotation.y = playerRotationY; camera.rotation.x = playerPitchX;
-        
         if (gunGroup && !isMeleeSwinging) gunGroup.position.z = THREE.MathUtils.lerp(gunGroup.position.z, -0.35, 0.15);
-        if (remoteHpBarGroup) remoteHpBarGroup.lookAt(camera.position);
+        if (remoteHpBarGroup) {
+          const camWorldPos = new THREE.Vector3();
+          camera.getWorldPosition(camWorldPos);
+          remoteHpBarGroup.lookAt(camWorldPos);
+        }
 
-        /* 부쉬(풀숲) 은신 감지 로직 */
         let inBush = false;
         bushes.forEach(b => {
           if (Math.hypot(localPlayer.position.x - b.x, localPlayer.position.z - b.z) < 1.3) {
@@ -1069,7 +1076,8 @@
         scene.add(flash); setTimeout(() => scene.remove(flash), 40);
 
         const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
-        const spawnPos = camera.position.clone().add(dir.clone().multiplyScalar(0.4));
+        const camWorldPos = new THREE.Vector3(); camera.getWorldPosition(camWorldPos);
+        const spawnPos = camWorldPos.clone().add(dir.clone().multiplyScalar(0.4));
 
         for(let i=0; i<myBulletCount; i++) {
           let shootDir = dir.clone();
@@ -1214,7 +1222,9 @@
       if (myItem.includes('화염병')) col = 0xff4400; else if (myItem.includes('연막탄')) col = 0x888888; else if (myItem.includes('섬광탄')) col = 0xffff00; else if (myItem.includes('독가스탄')) col = 0x00ff00;
 
       const proj = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.5 }));
-      const spawnPos = camera.position.clone(); proj.position.copy(spawnPos); scene.add(proj);
+      
+      const camWorldPos = new THREE.Vector3(); camera.getWorldPosition(camWorldPos);
+      proj.position.copy(camWorldPos); scene.add(proj);
 
       const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y += 0.2;
       let velocity = dir.normalize().multiplyScalar(0.42), grav = -0.015;
@@ -1227,7 +1237,7 @@
         }
       }, 16);
 
-      if (!isAiMode && conn && conn.open) conn.send({ type: 'USE_ITEM', item: myItem, pos: spawnPos });
+      if (!isAiMode && conn && conn.open) conn.send({ type: 'USE_ITEM', item: myItem, pos: camWorldPos });
     }
 
     function playExplosionEffect(pos) {
@@ -1366,17 +1376,30 @@
       document.getElementById('step-code').style.display = 'none'; document.getElementById('step-weapon').style.display = 'block';
     }
 
+    // 방 만들기 (STUN 옵션 적용)
     function createRoom() {
       isAiMode = false; const code = Math.floor(1000 + Math.random() * 9000).toString();
       document.getElementById('room-code-input').value = code; document.getElementById('code-status-msg').innerText = `발급된 코드: [ ${code} ] - 대기 중...`;
-      isHost = true; peer = new Peer(PEER_PREFIX + code); peer.on('connection', connection => { conn = connection; setupDataListener(); });
+      isHost = true; 
+      
+      peer = new Peer(PEER_PREFIX + code, PEER_CONFIG);
+      peer.on('connection', connection => { conn = connection; setupDataListener(); });
+      peer.on('error', err => {
+        document.getElementById('code-status-msg').innerText = "연결 오류: " + err.type;
+      });
     }
 
+    // 방 참가하기 (STUN 옵션 적용)
     function joinRoom() {
       const code = document.getElementById('room-code-input').value.trim();
       if (code.length !== 4) return alert("4자리 코드를 입력하세요!");
       isAiMode = isHost = false; document.getElementById('code-status-msg').innerText = "접속 시도 중...";
-      peer = new Peer(); peer.on('open', () => { conn = peer.connect(PEER_PREFIX + code); setupDataListener(); });
+      
+      peer = new Peer(PEER_CONFIG);
+      peer.on('open', () => { conn = peer.connect(PEER_PREFIX + code); setupDataListener(); });
+      peer.on('error', err => {
+        document.getElementById('code-status-msg').innerText = "방 참가 실패: 코드를 다시 확인하세요.";
+      });
     }
 
     function setupDataListener() {
