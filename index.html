@@ -24,7 +24,7 @@
     h2 { margin-bottom: 8px; color: #00ffcc; font-size: 20px; }
     p.desc { font-size: 12px; color: #aaa; margin-bottom: 14px; }
     
-    input { width: 100%; padding: 10px; margin-bottom: 12px; border-radius: 8px; border: 1px solid #333; background: #1a1a24; color: #00ffcc; text-align: center; font-size: 18px; font-weight: bold; letter-spacing: 4px; outline: none; }
+    input { width: 100%; padding: 10px; margin-bottom: 12px; border-radius: 8px; border: 1px solid #333; background: #1a1a24; color: #00ffcc; text-align: center; font-size: 16px; font-weight: bold; letter-spacing: 1px; outline: none; }
 
     .option-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; max-height: 200px; overflow-y: auto; padding-right: 5px;}
     .option-group::-webkit-scrollbar { width: 5px; }
@@ -38,6 +38,8 @@
     button.action-btn:hover { background: #00d6ad; transform: translateY(-2px); }
     button.action-btn:disabled { background: #444 !important; color: #888 !important; cursor: not-allowed; transform: none; }
     button.secondary { background: #2a2a38; color: #00ffcc; border: 1px solid #00ffcc; }
+    button.ip-btn { background: #00bfff; color: #0f0f13; border: 1px solid #00bfff; margin-top: 4px; }
+    button.ip-btn:hover { background: #0099cc; }
     button.ai-btn { background: #ffaa00; color: #111; margin-top: 6px; }
     button.danger { background: #ff0055; color: #fff; }
 
@@ -135,12 +137,14 @@
   </div>
 
   <div class="ui-layer">
+    <!-- 네트워크 접속 입력창 및 접속 버튼 개선 -->
     <div id="step-code" class="card interactive">
       <h2>1v1 FPS ARENA</h2>
       <p class="desc">부드러운 저중력 점프 & 커스텀 아이템 3D 전장!</p>
-      <input type="text" id="room-code-input" placeholder="4자리 숫자" maxlength="4">
+      <input type="text" id="room-code-input" placeholder="4자리 코드 또는 상대방 IP 주소 입력" maxlength="20">
       <button class="action-btn" onclick="createRoom()">🎲 방 만들기 (Host)</button>
-      <button class="action-btn secondary" onclick="joinRoom()">🔗 코드 입력 참가 (Join)</button>
+      <button class="action-btn secondary" onclick="joinRoom()">🔗 4자리 코드로 접속 (Join Code)</button>
+      <button class="action-btn ip-btn" onclick="joinRoomByIp()">🌐 상대방 IP로 접속 (Join IP)</button>
       <button class="action-btn ai-btn" onclick="startAiMode()">🤖 1v1 AI 대전 시작</button>
       <p id="code-status-msg" style="margin-top:8px; font-size:12px; color:#00ffcc;"></p>
     </div>
@@ -196,21 +200,7 @@
   </div>
 
   <script>
-    const PEER_PREFIX = "rival3d-v16-p2p-";
-    
-    // 외부 컴퓨터 간 연결 확율을 높여주는 구글 공용 STUN 서버 설정
-    const PEER_CONFIG = {
-      config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
-          { urls: 'stun:stun3.l.google.com:19302' },
-          { urls: 'stun:stun4.l.google.com:19302' }
-        ]
-      }
-    };
-
+    const PEER_PREFIX = "rival3d-v15-float-";
     let peer = null, conn = null;
     let isHost = false, isAiMode = false;
 
@@ -1341,59 +1331,90 @@
       document.getElementById('step-code').style.display = 'none'; document.getElementById('step-weapon').style.display = 'block';
     }
 
-    // [네트워크 기능 수정 영역]
+    /* 방 만들기 및 접속 관련 업데이트된 로직 */
     function createRoom() {
       isAiMode = false;
-      const code = Math.floor(1000 + Math.random() * 9000).toString();
-      document.getElementById('room-code-input').value = code;
-      document.getElementById('code-status-msg').innerText = `방 등록 중... [ 코드: ${code} ]`;
+      const inputVal = document.getElementById('room-code-input').value.trim();
+      let targetId = "";
+
+      if (inputVal.includes('.')) {
+        // IP 주소를 직접 입력하고 방을 만든 경우 (Host가 자기 IP를 입력하여 방 생성)
+        const cleanIp = inputVal.replace(/[^0-9a-zA-Z]/g, '-');
+        targetId = PEER_PREFIX + "ip-" + cleanIp;
+        document.getElementById('code-status-msg').innerText = `내 IP [ ${inputVal} ] 기준 방 생성 완료! (접속 대기 중)`;
+      } else {
+        // 기본 4자리 랜덤 코드 방식
+        const code = (inputVal.length === 4) ? inputVal : Math.floor(1000 + Math.random() * 9000).toString();
+        document.getElementById('room-code-input').value = code;
+        targetId = PEER_PREFIX + code;
+        document.getElementById('code-status-msg').innerText = `발급된 코드: [ ${code} ] - 상대방 접속 대기 중...`;
+      }
+
       isHost = true;
-
       if (peer) peer.destroy();
-      peer = new Peer(PEER_PREFIX + code, PEER_CONFIG);
+      peer = new Peer(targetId);
 
-      peer.on('open', (id) => {
-        document.getElementById('code-status-msg').innerText = `🟢 방 생성 완료! [ 코드: ${code} ] - 접속 대기 중...`;
+      peer.on('open', () => {
+        document.getElementById('hud-status').innerText = "🟡 호스트 대기 중";
       });
 
-      peer.on('connection', connection => {
-        conn = connection;
-        setupDataListener();
+      peer.on('connection', connection => { 
+        conn = connection; 
+        setupDataListener(); 
       });
 
       peer.on('error', err => {
-        document.getElementById('code-status-msg').innerText = `❌ 네트워크 오류: ${err.type}`;
+        console.error(err);
+        document.getElementById('code-status-msg').innerText = "❌ 방 생성 실패. 다른 코드를 사용해 주세요.";
       });
     }
 
     function joinRoom() {
       const code = document.getElementById('room-code-input').value.trim();
       if (code.length !== 4) return alert("4자리 코드를 입력하세요!");
-      isAiMode = isHost = false;
-      document.getElementById('code-status-msg').innerText = "서버 접속 시도 중...";
-
+      isAiMode = isHost = false; 
+      document.getElementById('code-status-msg').innerText = `코드 [ ${code} ] 접속 시도 중...`;
+      
       if (peer) peer.destroy();
-      peer = new Peer(PEER_CONFIG);
-
-      peer.on('open', () => {
-        document.getElementById('code-status-msg').innerText = "상대방 방 찾는 중...";
-        conn = peer.connect(PEER_PREFIX + code, { reliable: true });
-        setupDataListener();
+      peer = new Peer(); 
+      peer.on('open', () => { 
+        conn = peer.connect(PEER_PREFIX + code); 
+        setupDataListener(); 
       });
 
       peer.on('error', err => {
-        document.getElementById('code-status-msg').innerText = "❌ 접속 실패: 방 코드가 없거나 방화벽으로 차단됨.";
+        console.error(err);
+        document.getElementById('code-status-msg').innerText = "❌ 접속 실패. 코드를 다시 확인하세요.";
+      });
+    }
+
+    function joinRoomByIp() {
+      const ipInput = document.getElementById('room-code-input').value.trim();
+      if (!ipInput || !ipInput.includes('.')) return alert("올바른 IP 주소를 입력하세요! (예: 192.168.0.15)");
+
+      isAiMode = isHost = false; 
+      document.getElementById('code-status-msg').innerText = `상대방 IP [ ${ipInput} ] 로 접속 시도 중...`;
+
+      const cleanIp = ipInput.replace(/[^0-9a-zA-Z]/g, '-');
+      const targetPeerId = PEER_PREFIX + "ip-" + cleanIp;
+
+      if (peer) peer.destroy();
+      peer = new Peer(); 
+      peer.on('open', () => { 
+        conn = peer.connect(targetPeerId); 
+        setupDataListener(); 
+      });
+
+      peer.on('error', err => {
+        console.error(err);
+        document.getElementById('code-status-msg').innerText = "❌ IP 접속 실패. 상대방 방이 열려있는지 확인하세요.";
       });
     }
 
     function setupDataListener() {
-      if (!conn) return;
-
       conn.on('open', () => {
-        document.getElementById('hud-status').innerText = "🟢 상대방 연결됨"; 
-        document.getElementById('hud-status').style.color = "#00ffcc";
-        document.getElementById('step-code').style.display = 'none'; 
-        document.getElementById('step-weapon').style.display = 'block';
+        document.getElementById('hud-status').innerText = "🟢 상대방 연결됨"; document.getElementById('hud-status').style.color = "#00ffcc";
+        document.getElementById('step-code').style.display = 'none'; document.getElementById('step-weapon').style.display = 'block';
       });
 
       conn.on('data', data => {
@@ -1423,11 +1444,6 @@
             bluePortalPos = bluePortalMesh.position.clone();
           }
         }
-      });
-
-      conn.on('close', () => {
-        alert("상대방과의 연결이 끊어졌습니다.");
-        location.reload();
       });
     }
 
