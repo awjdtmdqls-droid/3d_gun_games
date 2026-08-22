@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>3D 1v1 FPS Rival Shooter - IP Connect & Portal Gun</title>
+  <title>3D 1v1 FPS Rival Shooter - Floating Jump & Portal Gun</title>
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
@@ -24,17 +24,22 @@
     h2 { margin-bottom: 8px; color: #00ffcc; font-size: 20px; }
     p.desc { font-size: 12px; color: #aaa; margin-bottom: 14px; }
     
-    .input-row { display: flex; gap: 8px; margin-bottom: 8px; }
-    input { width: 100%; padding: 10px; margin-bottom: 8px; border-radius: 8px; border: 1px solid #333; background: #1a1a24; color: #00ffcc; text-align: center; font-size: 14px; font-weight: bold; outline: none; }
-    input::placeholder { color: #666; font-weight: normal; }
+    input { width: 100%; padding: 10px; margin-bottom: 12px; border-radius: 8px; border: 1px solid #333; background: #1a1a24; color: #00ffcc; text-align: center; font-size: 16px; font-weight: bold; letter-spacing: 1px; outline: none; }
 
     .option-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; max-height: 200px; overflow-y: auto; padding-right: 5px;}
+    .option-group::-webkit-scrollbar { width: 5px; }
+    .option-group::-webkit-scrollbar-thumb { background: #00ffcc; border-radius: 5px; }
+
     .option-btn { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #444; background: #2a2a38; color: #ccc; font-weight: bold; font-size: 13px; cursor: pointer; transition: all 0.2s ease; }
     .option-btn:hover { background: #3a3a4c; color: #fff; }
+    .option-btn.active { background: #00ffcc !important; color: #0f0f13 !important; border: 2px solid #fff !important; font-weight: bold; box-shadow: 0 0 14px rgba(0, 255, 204, 0.6); }
 
     button.action-btn { width: 100%; padding: 12px; margin: 4px 0; border-radius: 8px; border: none; background: #00ffcc; color: #0f0f13; font-weight: bold; font-size: 15px; cursor: pointer; transition: all 0.2s; }
     button.action-btn:hover { background: #00d6ad; transform: translateY(-2px); }
+    button.action-btn:disabled { background: #444 !important; color: #888 !important; cursor: not-allowed; transform: none; }
     button.secondary { background: #2a2a38; color: #00ffcc; border: 1px solid #00ffcc; }
+    button.ip-btn { background: #00bfff; color: #0f0f13; border: 1px solid #00bfff; margin-top: 4px; }
+    button.ip-btn:hover { background: #0099cc; }
     button.ai-btn { background: #ffaa00; color: #111; margin-top: 6px; }
     button.danger { background: #ff0055; color: #fff; }
 
@@ -88,7 +93,7 @@
     <div class="scope-dot"></div>
   </div>
 
-  <div id="notice-overlay">알림 메시지</div>
+  <div id="notice-overlay">탄약 고갈! 보조 무기로 전환됩니다.</div>
   
   <div id="controls-tip">
     🕹️ WASD / 방향키 이동 | 🆙 Space 부드러운 점프 | 🔄 <strong>E키: 무기 교체 (주무기 ↔ 포탈건)</strong><br>
@@ -102,730 +107,1362 @@
   <div id="hud-bottom-left">
     <div class="status-tags-container">
       <div id="invincible-tag" class="status-tag">🛡️ 무적 상태</div>
-      <div id="stealth-tag" class="status-tag">🥷 스텔스 (반투명)</div>
-      <div id="infammo-tag" class="status-tag">♾️ 탄약 무한</div>
-      <div id="speed-tag" class="status-tag">⚡ 스피드 부스트</div>
+      <div id="stealth-tag" class="status-tag">🌿 부쉬 은신 중</div>
+      <div id="infammo-tag" class="status-tag">🟣 무한 탄약! (인피니티)</div>
+      <div id="speed-tag" class="status-tag">💨 속도 버프!</div>
     </div>
+
     <div class="stat-bars-card">
-      <div class="bar-label">
-        <span>HP</span><span id="hud-hp-text">100 / 100</span>
-      </div>
-      <div class="hp-container"><div id="hud-hp-bar" class="hp-bar-fill"></div></div>
-      <div class="bar-label" style="margin-top: 6px;">
-        <span>SHIELD</span><span id="hud-shield-text">100 / 100</span>
-      </div>
-      <div class="shield-container"><div id="hud-shield-bar" class="shield-bar-fill"></div></div>
+      <div class="bar-label"><span>체력 (HP)</span></div>
+      <div class="hp-container"><div id="hp-bar-fill" class="hp-bar-fill"></div></div>
+      
+      <div class="bar-label" style="margin-top: 8px;"><span>방패 내구도 (Shield) [F]</span></div>
+      <div class="shield-container"><div id="shield-bar-fill" class="shield-bar-fill"></div></div>
     </div>
+
     <div class="weapon-info-card">
       <div class="weapon-row">
-        <span id="hud-weapon" class="weapon-name">기본 소총</span>
-        <span class="ammo-count"><span id="hud-ammo">20</span> / <span id="hud-max-ammo">20</span></span>
+        <span id="hud-weapon" class="weapon-name">선택 전</span>
+        <span id="hud-ammo" class="ammo-count">0</span>
       </div>
       <div class="item-row">
-        <span><b id="hud-shield-item" style="color:#00ffff;">0</b> 방패(F)</span>
-        <span><b id="hud-pot-item" style="color:#ffaa00;">0</b> 투척물(G)</span>
+        <span>특수아이템 [G]</span>
+        <strong id="hud-item" style="color: #ffaa00;">준비 완료</strong>
+      </div>
+      <div class="item-row" style="border: none; margin-top: 2px; padding-top: 0;">
+        <span>상태</span>
+        <span id="hud-status" style="color: #ff9900;">대기 중...</span>
       </div>
     </div>
   </div>
 
-  <div class="ui-layer" id="ui-layer">
+  <div class="ui-layer">
+    <!-- 네트워크 접속 입력창 및 접속 버튼 개선 -->
     <div id="step-code" class="card interactive">
-      <h2>3D 1v1 FPS Rival Shooter</h2>
-      <p class="desc">IP 기반 P2P 포탈건 대전 게임</p>
-      
-      <!-- 커스텀 IP/서버 설정 -->
-      <div style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #333;">
-        <p class="desc" style="margin-bottom: 6px; color:#00ffcc;">🌐 신호 서버 설정 (기본값: 공용 서버)</p>
-        <div class="input-row">
-          <input type="text" id="input-server-ip" placeholder="서버 IP (비워두면 공용서버)">
-          <input type="text" id="input-server-port" style="width: 130px;" placeholder="포트(예:9000)">
-        </div>
-      </div>
-
-      <!-- 방 만들기 섹션 -->
-      <div style="margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 15px;">
-        <button class="action-btn" id="btn-create-room" onclick="createRoom()">🎲 방 만들기 (팀코드 발급)</button>
-        <div id="room-code-display" style="margin-top: 10px; font-size: 16px; color: #00ffcc; font-weight: bold; display: none;">
-          생성된 팀코드: <span id="generated-code" style="font-size: 22px; color: #fff; background: #222; padding: 2px 10px; border-radius: 5px;">0000</span>
-        </div>
-      </div>
-
-      <!-- 방 참여하기 섹션 -->
-      <div>
-        <input type="text" id="input-team-code" placeholder="친구의 팀코드 4자리 입력" maxlength="4">
-        <button class="action-btn secondary" id="btn-join-room" onclick="joinRoom()">🔗 게임 참여하기</button>
-      </div>
-      
-      <!-- 상태 메시지 출력 -->
-      <p id="code-status-msg" style="margin-top:12px; font-size:13px; color:#ffaa00; font-weight:bold;"></p>
-      
-      <!-- AI 대전 옵션 -->
-      <button class="action-btn ai-btn" onclick="startAiMode()" style="margin-top: 20px;">🤖 1v1 혼자 AI 대전 연습하기</button>
+      <h2>1v1 FPS ARENA</h2>
+      <p class="desc">부드러운 저중력 점프 & 커스텀 아이템 3D 전장!</p>
+      <input type="text" id="room-code-input" placeholder="4자리 코드 또는 상대방 IP 주소 입력" maxlength="20">
+      <button class="action-btn" onclick="createRoom()">🎲 방 만들기 (Host)</button>
+      <button class="action-btn secondary" onclick="joinRoom()">🔗 4자리 코드로 접속 (Join Code)</button>
+      <button class="action-btn ip-btn" onclick="joinRoomByIp()">🌐 상대방 IP로 접속 (Join IP)</button>
+      <button class="action-btn ai-btn" onclick="startAiMode()">🤖 1v1 AI 대전 시작</button>
+      <p id="code-status-msg" style="margin-top:8px; font-size:12px; color:#00ffcc;"></p>
     </div>
 
-    <!-- 인게임 메뉴 (Q키) -->
-    <div id="ingame-menu" class="card interactive">
-      <h2>일시 정지 메뉴</h2>
-      <p class="desc">아래 옵션을 통해 게임 설정을 변경할 수 있습니다.</p>
+    <div id="step-weapon" class="card interactive" style="display: none;">
+      <h2>1. 주무기 & 2. 보조/근접 무기 선택</h2>
+      <p class="desc">주무기 선택</p>
       <div class="option-group">
-        <button class="option-btn" id="btn-opt-hp">체력 무한 / 보통 (토글)</button>
-        <button class="option-btn" id="btn-opt-ammo">탄약 무한 / 보통 (토글)</button>
-        <button class="option-btn" id="btn-opt-weapon">무기 랜덤 변경 (지급)</button>
-        <button class="option-btn" id="btn-opt-mode">속도 부스트 (토글)</button>
-        <button class="option-btn" id="btn-opt-gravity">저중력 모드 (토글)</button>
+        <button class="option-btn active" onclick="highlightWeapon(this, '권총', 50, true, 80, 1, 22)">🔫 권총 (초고속 연사 / 데미지: 22)</button>
+        <button class="option-btn" onclick="highlightWeapon(this, '연사 소총', 120, true, 110, 1, 13)">⚡ 연사 소총 (데미지: 13)</button>
+        <button class="option-btn" onclick="highlightWeapon(this, '고속 기관총', 200, true, 65, 1, 8)">💥 고속 기관총 (데미지: 8)</button>
+        <button class="option-btn" onclick="highlightWeapon(this, '샷건', 30, false, 600, 6, 6)">🪓 샷건 (알당 데미지: 6)</button>
+        <button class="option-btn" onclick="highlightWeapon(this, '저격총', 12, false, 1200, 1, 55)">🔭 저격총 (데미지: 55)</button>
       </div>
-      <button class="action-btn danger" onclick="resumeGame()">게임으로 돌아가기 (Q)</button>
+
+      <p class="desc" style="margin-top:10px;">E키 교체 또는 탄약 소진 시 사용될 보조무기 선택</p>
+      <div class="option-group">
+        <button class="option-btn active" onclick="highlightMelee(this, '포탈건')">🌀 포탈건 (좌클릭: 시작 / 우클릭: 끝)</button>
+        <button class="option-btn" onclick="highlightMelee(this, '일반 칼')">🔪 일반 칼 (빠른 베기 / 30 Dmg)</button>
+        <button class="option-btn" onclick="highlightMelee(this, '광선검')">⚔️ 광선검 (강력한 베기 / 45 Dmg)</button>
+        <button class="option-btn" onclick="highlightMelee(this, '돌진 검')">🏃‍♂️ 돌진 검 (공격 시 전방 돌진 / 35 Dmg)</button>
+      </div>
+      <button class="action-btn" onclick="confirmWeaponStep()">다음 단계 (투척 무기) ➔</button>
+    </div>
+
+    <div id="step-item" class="card interactive" style="display: none;">
+      <h2>특수 대형 투척 무기 선택</h2>
+      <p class="desc">G키로 던질 대형 아이템 (쿨타임 8초)</p>
+      <div class="option-group">
+        <button class="option-btn active" onclick="highlightItem(this, '화염병 🍾')">🍾 화염병 (불바다 지속 데미지)</button>
+        <button class="option-btn" onclick="highlightItem(this, '수류탄 💣')">💣 수류탄 (25 데미지 폭발)</button>
+        <button class="option-btn" onclick="highlightItem(this, '연막탄 💨')">💨 연막탄 (시야 차단)</button>
+        <button class="option-btn" onclick="highlightItem(this, '섬광탄 ⚡')">⚡ 섬광탄 (화면 마비)</button>
+        <button class="option-btn" onclick="highlightItem(this, '독가스탄 🧪')">🧪 독가스탄 (광역 도트 데미지)</button>
+      </div>
+      <button id="btn-ready" class="action-btn secondary" style="background: #00ffcc; color: #111;" onclick="pressReady()">⚔️ 전투 준비 완료 (Ready)</button>
+      <p id="ready-status-msg" style="margin-top:8px; font-size:12px; color:#ffaa00;"></p>
+    </div>
+
+    <div id="step-gameover" class="card interactive" style="display: none;">
+      <h2 id="gameover-title" style="color: #ff0055;">GAME OVER</h2>
+      <p id="gameover-desc" class="desc">결과를 확인하세요</p>
+      <button id="btn-rematch" class="action-btn" onclick="pressRematch()">🔄 다시하기</button>
+      <button class="action-btn danger" onclick="pressExit()">🚪 메인 메뉴</button>
+      <p id="rematch-status-msg" style="margin-top:10px; font-size:12px; color:#ffaa00;"></p>
+    </div>
+
+    <div id="ingame-menu" class="card interactive">
+      <h2 style="color: #fff;">일시 정지</h2>
+      <button class="action-btn" onclick="resumeGame()">▶️ 게임으로 돌아가기</button>
+      <button class="action-btn danger" onclick="pressExit()">🚪 게임 종료 및 나가기</button>
     </div>
   </div>
 
   <script>
-    /* =========================================
-       1. Three.js 설정 및 초기 맵 구성
-       ========================================= */
-    const canvas = document.getElementById('game-canvas');
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    const PEER_PREFIX = "rival3d-v15-float-";
+    let peer = null, conn = null;
+    let isHost = false, isAiMode = false;
 
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0f0f13);
-    scene.fog = new THREE.Fog(0x0f0f13, 20, 150);
+    let isMyReady = false, isPeerReady = false;
+    let isMyRematch = false, isPeerRematch = false;
+    let isMenuRequested = false;
 
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 1.8, 0);
+    let maxAmmo = 50;
+    let initialWeapon = "권총", initialAmmo = 50, weaponBaseDmg = 22;
+    let isAutoWeapon = true, fireIntervalMs = 80;
+    let myBulletCount = 1; 
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.25);
-    scene.add(ambientLight);
-
-    const dirLight = new THREE.DirectionalLight(0xffeedd, 0.7);
-    dirLight.position.set(50, 100, 50);
-    dirLight.castShadow = true;
-    scene.add(dirLight);
-
-    function createGridTex() {
-      const c = document.createElement('canvas'); c.width = 128; c.height = 128;
-      const ctx = c.getContext('2d');
-      ctx.fillStyle = '#111'; ctx.fillRect(0,0,128,128);
-      ctx.strokeStyle = '#222'; ctx.lineWidth = 2;
-      ctx.strokeRect(0,0,128,128);
-      return new THREE.CanvasTexture(c);
-    }
-    const gridTex = createGridTex(); gridTex.wrapS = THREE.RepeatWrapping; gridTex.wrapT = THREE.RepeatWrapping; gridTex.repeat.set(40, 40);
-
-    const floorGeo = new THREE.PlaneGeometry(100, 100);
-    const floorMat = new THREE.MeshStandardMaterial({ map: gridTex, roughness: 0.8, metalness: 0.2 });
-    const floor = new THREE.Mesh(floorGeo, floorMat);
-    floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true;
-    scene.add(floor);
-
-    const collidables = [];
-    function createWall(x, z, w, h, d, color = 0x2a2a35) {
-      const g = new THREE.BoxGeometry(w, h, d);
-      const m = new THREE.MeshStandardMaterial({ color: color, roughness: 0.7 });
-      const mesh = new THREE.Mesh(g, m);
-      mesh.position.set(x, h/2, z); mesh.castShadow = true; mesh.receiveShadow = true;
-      scene.add(mesh);
-      collidables.push(mesh);
-    }
+    let selectedMeleeWeapon = "포탈건";
+    let isMeleeActive = false;
+    let isMeleeSwinging = false;
     
-    // 테두리 및 장애물 벽
-    createWall(0, -50, 100, 15, 1);
-    createWall(0, 50, 100, 15, 1);
-    createWall(-50, 0, 1, 15, 100);
-    createWall(50, 0, 1, 15, 100);
-    createWall(0, 0, 2, 5, 20);
-    createWall(-15, 10, 10, 6, 2);
-    createWall(15, -10, 10, 6, 2);
+    let myWeapon = "권총", myAmmo = 50, myItem = "화염병 🍾";
+    let myHp = 100, aiHp = 100; 
+    
+    let isMouseDown = false, lastShootTime = 0;
+    const ITEM_COOLDOWN_TIME = 8.0;
+    let itemCooldownTimer = 0;
 
-    /* =========================================
-       2. PeerJS & IP 네트워크 연동
-       ========================================= */
-    const PEER_PREFIX = "rival_portal_fps_2026_";
-    let peer, conn, isHost = false, isAiMode = false;
-    let enemyReady = false, gameStarted = false;
+    let shieldHp = 50, maxShieldHp = 50, isShieldActive = false;
+    let myScore = 0, enemyScore = 0;
+    let isMyInvincible = false, isEnemyInvincible = false;
 
-    const player = {
-      x: 0, y: 1.5, z: -20, vx: 0, vy: 0, vz: 0, pitch: 0, yaw: 0,
-      hp: 100, maxHp: 100, shield: 100, maxShield: 100,
-      score: 0, enemyScore: 0,
-      isInvincible: false, isStealth: false, isInfAmmo: false, isSpeedBoost: false, isLowGravity: false,
-      shieldItems: 1, potionItems: 1
-    };
+    let stealthTimer = 0, infAmmoTimer = 0, speedBoostTimer = 0, portalCooldown = 0;
+    let aiLastShootTime = 0, isGameRunning = false;
 
-    let aiPlayer = { x: 0, y: 1.5, z: 20, hp: 100, lastShootTime: 0 };
+    let redPortalMesh = null, bluePortalMesh = null;
+    let redPortalPos = null, bluePortalPos = null;
+
+    let scene, camera, renderer;
+    let localPlayer, remotePlayer, gunGroup;
+    let localShieldMesh, remoteShieldMesh;
+    let remoteInvicSphere;
+    let remoteHpBarGroup, remoteHpBarFill;
+
+    let bullets = [], activeFires = [], activeSmokes = [], activePoisons = [], activeExplosions = [], decals = [];
+    let collidableObjects = [], collidableWalls = [];
+    let spawnedItems = [], lastItemSpawnTime = 0;
+    let jumpPads = [], speedPads = [], portals = [], bushes = [];
+
+    let playerRotationY = 0, playerPitchX = 0, playerVelY = 0;
+    let isGrounded = true, isAiming = false; 
+    
+    const gravity = -0.0028; 
+    const jumpPower = 0.15; 
     const keys = {};
 
-    window.addEventListener('keydown', e => { keys[e.code] = true; });
-    window.addEventListener('keyup', e => { keys[e.code] = false; });
-
-    function setStatus(msg, color = "#ffaa00") {
-      const el = document.getElementById('code-status-msg');
-      if (el) { el.innerText = msg; el.style.color = color; }
+    let mapSeed = 12345;
+    function mapRandom() {
+      let x = Math.sin(mapSeed++) * 10000;
+      return x - Math.floor(x);
     }
 
-    function cleanupConnection() {
-      enemyReady = false;
-      if (conn) { try { conn.close(); } catch (e) {} conn = null; }
-      if (peer) { try { peer.destroy(); } catch (e) {} peer = null; }
+    function init3D() {
+      if (scene) return;
+
+      const canvas = document.getElementById('game-canvas');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x221c18);
+      scene.fog = new THREE.FogExp2(0x221c18, 0.018);
+
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.rotation.order = 'YXZ';
+      scene.add(camera);
+
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+
+      scene.add(new THREE.AmbientLight(0xfff5e6, 0.8));
+      const dirLight = new THREE.DirectionalLight(0xffeedd, 0.9);
+      dirLight.position.set(15, 30, 15);
+      scene.add(dirLight);
+
+      buildMapTerrain();
+
+      localPlayer = new THREE.Group();
+      localPlayer.position.set(isHost ? -15 : 15, 0.75, 0);
+      scene.add(localPlayer);
+
+      gunGroup = new THREE.Group();
+      camera.add(gunGroup);
+      createGunModel();
+      createShieldModels();
+
+      createRemoteCharacter();
+
+      const invicGeo = new THREE.SphereGeometry(1.2, 16, 16);
+      const invicMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.25, wireframe: true });
+
+      remoteInvicSphere = new THREE.Mesh(invicGeo, invicMat.clone());
+      remoteInvicSphere.visible = false;
+      remotePlayer.add(remoteInvicSphere);
+
+      createRemoteHpBar();
+      setupInputs(canvas);
+      animate();
     }
 
-    function getPeerOptions() {
-      const ip = document.getElementById('input-server-ip').value.trim();
-      const port = document.getElementById('input-server-port').value.trim();
-      
-      const config = { debug: 1 };
-      if (ip !== "") {
-        config.host = ip;
-        config.port = port ? parseInt(port) : 9000;
-        config.path = '/';
-        config.secure = false;
+    function createRemoteCharacter() {
+      remotePlayer = new THREE.Group();
+      remotePlayer.position.set(isHost ? 15 : -15, 0.75, 0);
+
+      const mat = new THREE.MeshStandardMaterial({ color: 0xff0055 });
+      const heartMat = new THREE.MeshStandardMaterial({ color: 0xff3333 });
+
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), mat);
+      head.position.set(0, 0.65, 0);
+      head.userData = { part: 'head' };
+      remotePlayer.add(head);
+
+      const heart = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.6, 0.5), heartMat);
+      heart.position.set(0, 0.2, 0);
+      heart.userData = { part: 'heart' };
+      remotePlayer.add(heart);
+
+      const legGeo = new THREE.BoxGeometry(0.3, 0.6, 0.3);
+      const leftLeg = new THREE.Mesh(legGeo, mat); leftLeg.position.set(-0.2, -0.4, 0); leftLeg.userData = { part: 'leg' };
+      const rightLeg = new THREE.Mesh(legGeo, mat); rightLeg.position.set(0.2, -0.4, 0); rightLeg.userData = { part: 'leg' };
+      remotePlayer.add(leftLeg, rightLeg);
+
+      remoteShieldMesh = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.1, 0.08), new THREE.MeshStandardMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5 }));
+      remoteShieldMesh.position.set(0, 0, -0.55);
+      remoteShieldMesh.visible = false;
+      remotePlayer.add(remoteShieldMesh);
+
+      scene.add(remotePlayer);
+    }
+
+    function createRemoteHpBar() {
+      remoteHpBarGroup = new THREE.Group();
+      remoteHpBarGroup.position.set(0, 1.1, 0);
+      const bgMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.15), new THREE.MeshBasicMaterial({ color: 0x222222, depthTest: false }));
+      const fillGroup = new THREE.Group();
+      fillGroup.position.set(-0.6, 0, 0);
+      remoteHpBarFill = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.15), new THREE.MeshBasicMaterial({ color: 0xff0055, depthTest: false }));
+      remoteHpBarFill.position.set(0.6, 0, 0.01);
+      fillGroup.add(remoteHpBarFill);
+      remoteHpBarGroup.add(bgMesh, fillGroup);
+      remotePlayer.add(remoteHpBarGroup);
+    }
+
+    function updateRemoteHpBar() {
+      if (remoteHpBarFill) {
+        remoteHpBarFill.scale.x = Math.max(0.01, aiHp / 100);
       }
-      return config;
     }
 
-    function makeRoomCode() {
-      return Math.floor(1000 + Math.random() * 9000).toString();
+    function createGunModel() {
+      while(gunGroup.children.length > 0) gunGroup.remove(gunGroup.children[0]);
+      isMeleeActive = false;
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, 0.4), new THREE.MeshStandardMaterial({ color: 0x22222a, metalness: 0.8 }));
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.35), new THREE.MeshStandardMaterial({ color: 0x111115, metalness: 0.9 }));
+      barrel.rotation.x = Math.PI / 2; barrel.position.set(0, 0.02, -0.3);
+      gunGroup.add(body, barrel);
+      gunGroup.position.set(0.2, -0.16, -0.35);
+      gunGroup.rotation.set(0, 0, 0);
     }
 
-    function createRoom() {
-      isAiMode = false; isHost = true; gameStarted = false;
-      cleanupConnection();
+    function createMeleeModel() {
+      while(gunGroup.children.length > 0) gunGroup.remove(gunGroup.children[0]);
+      isMeleeActive = true;
 
-      const code = makeRoomCode();
-      const targetId = PEER_PREFIX + code;
+      if (selectedMeleeWeapon === '포탈건') {
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.45), new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.3 }));
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.2), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+        barrel.rotation.x = Math.PI / 2; barrel.position.set(0, 0, -0.28);
+        
+        const redCore = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+        redCore.position.set(-0.04, 0.05, -0.1);
+        const blueCore = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), new THREE.MeshBasicMaterial({ color: 0x0088ff }));
+        blueCore.position.set(0.04, 0.05, -0.1);
 
-      document.getElementById('generated-code').innerText = code;
-      document.getElementById('room-code-display').style.display = 'block';
-      setStatus("⏳ 방 생성 중...", "#ffaa00");
+        gunGroup.add(body, barrel, redCore, blueCore);
+      } else if (selectedMeleeWeapon === '광선검') {
+        const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.25), new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.9 }));
+        handle.rotation.x = Math.PI / 2;
+        const blade = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.8), new THREE.MeshBasicMaterial({ color: 0x00ffff }));
+        blade.rotation.x = Math.PI / 2; blade.position.set(0, 0, -0.45);
+        gunGroup.add(handle, blade);
+      } else if (selectedMeleeWeapon === '돌진 검') {
+        const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.2), new THREE.MeshStandardMaterial({ color: 0x442200 }));
+        handle.rotation.x = Math.PI / 2;
+        const blade = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.12, 0.7), new THREE.MeshStandardMaterial({ color: 0xff3300, metalness: 0.8, emissive: 0xaa1100 }));
+        blade.position.set(0, 0.02, -0.4);
+        gunGroup.add(handle, blade);
+      } else { 
+        const handle = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, 0.18), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+        const blade = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.08, 0.5), new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.9, roughness: 0.2 }));
+        blade.position.set(0, 0.02, -0.3);
+        gunGroup.add(handle, blade);
+      }
+      gunGroup.position.set(0.2, -0.2, -0.35);
+      gunGroup.rotation.set(0, 0, 0);
+    }
 
-      peer = new Peer(targetId, getPeerOptions());
+    function createShieldModels() {
+      localShieldMesh = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.1, 0.08), new THREE.MeshStandardMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5, metalness: 0.8 }));
+      localShieldMesh.position.set(0, -0.1, -0.55); localShieldMesh.visible = false;
+      camera.add(localShieldMesh);
+    }
 
-      peer.on('open', id => {
-        setStatus("🟢 방 생성 완료! 상대방에게 팀코드를 알려주세요.", "#00ffcc");
+    function toggleShield() {
+      if (shieldHp <= 0) return;
+      isShieldActive = !isShieldActive;
+      localShieldMesh.visible = isShieldActive;
+      if (!isAiMode && conn && conn.open) conn.send({ type: 'SHIELD_TOGGLE', active: isShieldActive });
+    }
+
+    function setAimMode(aiming) {
+      if (isMeleeActive) return;
+      isAiming = aiming;
+      document.getElementById('scope-overlay').style.display = isAiming ? 'block' : 'none';
+      document.getElementById('crosshair').style.display = isAiming ? 'none' : 'block';
+      if (gunGroup) gunGroup.visible = !isAiming;
+
+      camera.fov = isAiming ? 25 : 75;
+      camera.updateProjectionMatrix();
+    }
+
+    function toggleWeaponMode() {
+      if (isMeleeActive) {
+        createGunModel();
+        myWeapon = initialWeapon;
+        document.getElementById('hud-weapon').innerText = myWeapon;
+        document.getElementById('hud-weapon').style.color = "#00ffcc";
+        document.getElementById('hud-ammo').innerText = infAmmoTimer > 0 ? "∞ (무제한)" : myAmmo;
+      } else {
+        switchToMeleeWeapon();
+      }
+    }
+
+    function setupInputs(canvas) {
+      window.addEventListener('keydown', e => {
+        keys[e.code] = true;
+
+        if (e.code === 'Space' && e.target === document.body) {
+          e.preventDefault();
+        }
+
+        if (isGameRunning) {
+          if (e.code === 'KeyE') toggleWeaponMode();
+          if (e.code === 'KeyG') useSpecialItem();
+          if (e.code === 'KeyF') toggleShield();
+          if (e.code === 'KeyQ') {
+            isMenuRequested = true;
+            document.getElementById('ingame-menu').style.display = 'block';
+            if (document.pointerLockElement === canvas) document.exitPointerLock();
+          }
+        }
       });
 
-      peer.on('connection', connection => {
-        if (conn) { try { conn.close(); } catch (e) {} }
-        conn = connection;
-        setupNetworkConnection();
+      window.addEventListener('keyup', e => {
+        keys[e.code] = false;
+      });
+
+      window.addEventListener('resize', () => {
+        if (!camera || !renderer) return;
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+      window.addEventListener('contextmenu', e => e.preventDefault());
+
+      window.addEventListener('mousedown', e => {
+        if (!isGameRunning) return;
+        if (e.button === 0) { isMouseDown = true; tryShoot(); }
+        if (e.button === 2) {
+          if (isMeleeActive && selectedMeleeWeapon === '포탈건') {
+            firePortalGun('BLUE');
+          } else {
+            setAimMode(true);
+          }
+        }
+      });
+      window.addEventListener('mouseup', e => {
+        if (e.button === 0) isMouseDown = false;
+        if (e.button === 2) {
+          if (!isMeleeActive || selectedMeleeWeapon !== '포탈건') setAimMode(false);
+        }
+      });
+
+      canvas.addEventListener('click', () => { if (isGameRunning) canvas.requestPointerLock(); });
+
+      document.addEventListener('mousemove', e => {
+        if (document.pointerLockElement === canvas && isGameRunning) {
+          const sensitivity = isAiming ? 0.001 : 0.0028;
+          playerRotationY -= e.movementX * sensitivity;
+          playerPitchX -= e.movementY * sensitivity;
+          playerPitchX = Math.max(-1.4, Math.min(1.4, playerPitchX));
+          localPlayer.rotation.y = playerRotationY;
+        }
+      });
+
+      document.addEventListener('pointerlockchange', () => {
+        if (document.pointerLockElement !== canvas && isGameRunning && document.getElementById('step-gameover').style.display === 'none') {
+          document.getElementById('ingame-menu').style.display = isMenuRequested ? 'block' : 'none';
+        } else {
+          document.getElementById('ingame-menu').style.display = 'none';
+          isMenuRequested = false;
+        }
+      });
+    }
+
+    function resumeGame() { document.getElementById('game-canvas').requestPointerLock(); }
+
+    function buildMapTerrain() {
+      mapSeed = 12345;
+
+      const floorGeo = new THREE.PlaneGeometry(60, 60, 48, 48);
+      const posAttr = floorGeo.attributes.position;
+      for (let i = 0; i < posAttr.count; i++) {
+        posAttr.setZ(i, (mapRandom() - 0.5) * 0.5);
+      }
+      floorGeo.computeVertexNormals();
+
+      const sandMat = new THREE.MeshStandardMaterial({ color: 0xd2b48c, roughness: 0.9, flatShading: true });
+      const floor = new THREE.Mesh(floorGeo, sandMat);
+      floor.rotation.x = -Math.PI / 2; scene.add(floor); collidableObjects.push(floor);
+
+      const mountainGeo = new THREE.ConeGeometry(10, 12, 10);
+      const mountainMat = new THREE.MeshStandardMaterial({ color: 0x9e8a68, roughness: 0.85, flatShading: true });
+      const mtnCorners = [{x: -24, z: -24}, {x: 24, z: -24}, {x: -24, z: 24}, {x: 24, z: 24}];
+      mtnCorners.forEach(c => {
+        const mtn = new THREE.Mesh(mountainGeo, mountainMat);
+        mtn.position.set(c.x, 6, c.z);
+        mtn.rotation.y = mapRandom() * Math.PI;
+        mtn.updateMatrixWorld();
+        scene.add(mtn);
+        collidableObjects.push(mtn);
+      });
+
+      bushes = [];
+      const bushGeo = new THREE.SphereGeometry(0.7, 8, 8);
+      const bushMat = new THREE.MeshStandardMaterial({ color: 0x1e5631, roughness: 0.9 });
+      for (let i = 0; i < 22; i++) {
+        const bx = (mapRandom() - 0.5) * 44;
+        const bz = (mapRandom() - 0.5) * 44;
+        if (Math.abs(bx) < 6 && Math.abs(bz) < 6) continue;
+
+        const bushGroup = new THREE.Group();
+        const leafCount = 3 + Math.floor(mapRandom() * 3);
+        for (let j = 0; j < leafCount; j++) {
+          const leaf = new THREE.Mesh(bushGeo, bushMat);
+          leaf.position.set((mapRandom() - 0.5) * 0.8, 0.4 + mapRandom() * 0.4, (mapRandom() - 0.5) * 0.8);
+          const sc = 0.7 + mapRandom() * 0.5;
+          leaf.scale.set(sc, sc, sc);
+          bushGroup.add(leaf);
+        }
+        bushGroup.position.set(bx, 0, bz);
+        scene.add(bushGroup);
+        bushes.push({ x: bx, z: bz });
+      }
+
+      const wallMatDefault = new THREE.MeshStandardMaterial({ color: 0x7a6d5d, roughness: 0.7 });
+      const wallCount = 12;
+      for (let i = 0; i < wallCount; i++) {
+        const rx = (mapRandom() - 0.5) * 36;
+        const rz = (mapRandom() - 0.5) * 36;
+        if (Math.abs(rx) < 6 && Math.abs(rz) < 6) continue;
+
+        const rw = 1.5 + mapRandom() * 3.5;
+        const rh = 2.0 + mapRandom() * 5.0;
+        const rd = 0.8 + mapRandom() * 1.5;
+
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(rw, rh, rd), wallMatDefault);
+        wall.position.set(rx, rh / 2, rz);
+        wall.rotation.y = mapRandom() * Math.PI;
+        wall.updateMatrixWorld();
+        scene.add(wall);
+        collidableObjects.push(wall);
+        collidableWalls.push(wall);
+      }
+
+      const jpMat = new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 0.5 });
+      [{ x: -8, z: 2 }, { x: 8, z: -2 }].forEach(p => {
+        const mesh = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.1, 16), jpMat);
+        mesh.position.set(p.x, 0.05, p.z); scene.add(mesh); jumpPads.push(mesh);
+      });
+
+      const spMat = new THREE.MeshStandardMaterial({ color: 0x0088ff, emissive: 0x0088ff, emissiveIntensity: 0.5 });
+      [{ x: 0, z: -8 }, { x: 0, z: 8 }].forEach(p => {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 0.1, 2), spMat);
+        mesh.position.set(p.x, 0.05, p.z); scene.add(mesh); speedPads.push(mesh);
+      });
+
+      const ptMat = new THREE.MeshStandardMaterial({ color: 0x9900ff, emissive: 0x9900ff, emissiveIntensity: 0.8 });
+      const portalA = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.1, 16, 32), ptMat); portalA.position.set(-20, 1, -20); scene.add(portalA);
+      const portalB = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.1, 16, 32), ptMat); portalB.position.set(20, 1, 20); scene.add(portalB);
+      portals.push({ a: portalA.position, b: portalB.position, meshA: portalA, meshB: portalB });
+    }
+
+    function createPortalMesh(colorHex) {
+      const group = new THREE.Group();
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.1, 16, 32), new THREE.MeshBasicMaterial({ color: colorHex }));
+      const inner = new THREE.Mesh(new THREE.CircleGeometry(0.75, 32), new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
+      group.add(ring, inner);
+      const light = new THREE.PointLight(colorHex, 2, 5);
+      group.add(light);
+      return group;
+    }
+
+    function firePortalGun(type) {
+      const raycaster = new THREE.Raycaster();
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      raycaster.set(camera.position, dir);
+
+      const intersects = raycaster.intersectObjects(collidableObjects, true);
+      if (intersects.length > 0) {
+        const hit = intersects[0];
+        const point = hit.point;
+        const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+
+        if (type === 'RED') {
+          if (!redPortalMesh) {
+            redPortalMesh = createPortalMesh(0xff0000);
+            scene.add(redPortalMesh);
+          }
+          redPortalMesh.position.copy(point).add(normal.clone().multiplyScalar(0.05));
+          redPortalMesh.lookAt(point.clone().add(normal));
+          redPortalPos = redPortalMesh.position.clone();
+        } else {
+          if (!bluePortalMesh) {
+            bluePortalMesh = createPortalMesh(0x0088ff);
+            scene.add(bluePortalMesh);
+          }
+          bluePortalMesh.position.copy(point).add(normal.clone().multiplyScalar(0.05));
+          bluePortalMesh.lookAt(point.clone().add(normal));
+          bluePortalPos = bluePortalMesh.position.clone();
+        }
+
+        if (!isAiMode && conn && conn.open) {
+          conn.send({ type: 'SPAWN_PORTAL', portalType: type, pos: point, normal: normal });
+        }
+      }
+    }
+
+    function createBulletMeshShape(colorHex) {
+      const bGroup = new THREE.Group();
+      const mat = new THREE.MeshStandardMaterial({ color: colorHex, metalness: 0.8, roughness: 0.2 });
+      
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.3, 16), mat);
+      body.position.y = 0;
+      
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), mat);
+      tip.position.y = 0.15;
+      
+      bGroup.add(body, tip);
+      return bGroup;
+    }
+
+    function createItem3DMesh(type) {
+      const itemMeshGroup = new THREE.Group();
+
+      if (type === 'HEAL') {
+        const geo = new THREE.SphereGeometry(0.35, 24, 24);
+        const mat = new THREE.MeshStandardMaterial({ color: 0x00ff55, emissive: 0x00aa33, emissiveIntensity: 0.6, roughness: 0.2 });
+        itemMeshGroup.add(new THREE.Mesh(geo, mat));
+      } 
+      else if (type === 'STEALTH') {
+        const geo = new THREE.SphereGeometry(0.35, 24, 24);
+        const mat = new THREE.MeshStandardMaterial({ color: 0x00bfff, transparent: true, opacity: 0.65, emissive: 0x0088cc, emissiveIntensity: 0.5, roughness: 0.1 });
+        itemMeshGroup.add(new THREE.Mesh(geo, mat));
+      } 
+      else if (type === 'AMMO') {
+        const bullet = createBulletMeshShape(0xffd700);
+        itemMeshGroup.add(bullet);
+      } 
+      else if (type === 'INF_AMMO') {
+        const b1 = createBulletMeshShape(0xa020f0); b1.position.set(-0.15, 0, 0); b1.rotation.z = -0.2;
+        const b2 = createBulletMeshShape(0xd000ff); b2.position.set(0, 0.05, 0);
+        const b3 = createBulletMeshShape(0xa020f0); b3.position.set(0.15, 0, 0); b3.rotation.z = 0.2;
+        itemMeshGroup.add(b1, b2, b3);
+      } 
+      else if (type === 'SHIELD_RECHARGE') {
+        const geo = new THREE.OctahedronGeometry(0.35);
+        const mat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 0.7 });
+        itemMeshGroup.add(new THREE.Mesh(geo, mat));
+      }
+
+      return itemMeshGroup;
+    }
+
+    function spawnRandomMapItem() {
+      if (spawnedItems.length >= 6) return;
+      const rx = (Math.random() - 0.5) * 46;
+      const rz = (Math.random() - 0.5) * 46;
+
+      const types = ['AMMO', 'STEALTH', 'HEAL', 'INF_AMMO', 'SHIELD_RECHARGE'];
+      const cType = types[Math.floor(Math.random() * types.length)];
+
+      const mesh = createItem3DMesh(cType);
+      mesh.position.set(rx, 0.6, rz); 
+      scene.add(mesh);
+
+      spawnedItems.push({ mesh, type: cType, pos: mesh.position, startY: 0.6 });
+    }
+
+    function createDecal(point, normal) {
+      const geo = new THREE.CircleGeometry(0.1, 8);
+      const mat = new THREE.MeshBasicMaterial({ color: 0x111111, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1 });
+      const decal = new THREE.Mesh(geo, mat);
+      decal.position.copy(point).add(normal.clone().multiplyScalar(0.01));
+      decal.lookAt(point.clone().add(normal));
+      scene.add(decal);
+      decals.push(decal);
+      if (decals.length > 80) {
+        scene.remove(decals.shift());
+      }
+    }
+
+    function checkWallCollision(px, pz) {
+      const pRadius = 0.55;
+      const pVec = new THREE.Vector3(px, localPlayer.position.y, pz);
+
+      for (let wall of collidableWalls) {
+        const localP = wall.worldToLocal(pVec.clone());
+        const halfW = (wall.geometry.parameters.width / 2) + pRadius;
+        const halfD = (wall.geometry.parameters.depth / 2) + pRadius;
+        const halfH = (wall.geometry.parameters.height / 2);
+
+        if (Math.abs(localP.y) < halfH + 0.8 &&
+            Math.abs(localP.x) < halfW &&
+            Math.abs(localP.z) < halfD) {
+          return true;
+        }
+      }
+
+      const mtnCorners = [{x: -24, z: -24}, {x: 24, z: -24}, {x: -24, z: 24}, {x: 24, z: 24}];
+      for (let c of mtnCorners) {
+        const dist = Math.hypot(px - c.x, pz - c.z);
+        if (dist < 1.8) return true;
+      }
+
+      return false;
+    }
+
+    function clearAllEffects() {
+      bullets.forEach(b => { if (b.mesh) scene.remove(b.mesh); }); bullets = [];
+      decals.forEach(d => scene.remove(d)); decals = [];
+      activeFires.forEach(f => { if (f.mesh) scene.remove(f.mesh); if (f.light) scene.remove(f.light); }); activeFires = [];
+      activeSmokes.forEach(s => { s.group.children.forEach(c => scene.remove(c)); }); activeSmokes = [];
+      activePoisons.forEach(p => { p.group.children.forEach(c => scene.remove(c)); }); activePoisons = [];
+      activeExplosions.forEach(exp => { scene.remove(exp.group); }); activeExplosions = [];
+      spawnedItems.forEach(it => { if (it.mesh) scene.remove(it.mesh); }); spawnedItems = [];
+      if (redPortalMesh) { scene.remove(redPortalMesh); redPortalMesh = null; redPortalPos = null; }
+      if (bluePortalMesh) { scene.remove(bluePortalMesh); bluePortalMesh = null; bluePortalPos = null; }
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      if (isGameRunning) {
+        const now = Date.now();
+
+        if (remoteInvicSphere && remoteInvicSphere.visible) remoteInvicSphere.rotation.y += 0.02;
+
+        if (isMouseDown && isAutoWeapon && !isMeleeActive) tryShoot();
+
+        if (itemCooldownTimer > 0) {
+          itemCooldownTimer -= 1 / 60;
+          if (itemCooldownTimer <= 0) {
+            document.getElementById('hud-item').innerText = `${myItem} (준비 완료)`;
+            document.getElementById('hud-item').style.color = '#00ffcc';
+          } else {
+            document.getElementById('hud-item').innerText = `⏳ 쿨타임 (${Math.ceil(itemCooldownTimer)}초)`;
+            document.getElementById('hud-item').style.color = '#ff0055';
+          }
+        }
+
+        if (now - lastItemSpawnTime > 6000) { lastItemSpawnTime = now; spawnRandomMapItem(); }
+
+        if (portalCooldown > 0) portalCooldown -= 1/60;
+        
+        if (redPortalPos && bluePortalPos && portalCooldown <= 0) {
+          if (localPlayer.position.distanceTo(redPortalPos) < 1.5) {
+            localPlayer.position.copy(bluePortalPos).add(new THREE.Vector3(0, 0.5, 0));
+            portalCooldown = 1.5;
+          } else if (localPlayer.position.distanceTo(bluePortalPos) < 1.5) {
+            localPlayer.position.copy(redPortalPos).add(new THREE.Vector3(0, 0.5, 0));
+            portalCooldown = 1.5;
+          }
+        }
+
+        portals.forEach(p => {
+          p.meshA.rotation.y += 0.05; p.meshB.rotation.y += 0.05;
+          if (portalCooldown <= 0) {
+            if (localPlayer.position.distanceTo(p.a) < 1.5) { localPlayer.position.copy(p.b); portalCooldown = 2.0; }
+            else if (localPlayer.position.distanceTo(p.b) < 1.5) { localPlayer.position.copy(p.a); portalCooldown = 2.0; }
+          }
+        });
+
+        jumpPads.forEach(pad => {
+          if (localPlayer.position.distanceTo(pad.position) < 1.2 && isGrounded) { playerVelY = 0.35; isGrounded = false; }
+        });
+
+        speedPads.forEach(pad => {
+          if (localPlayer.position.distanceTo(pad.position) < 1.5) speedBoostTimer = 3.0;
+        });
+
+        const baseSpeed = (speedBoostTimer > 0) ? 0.22 : 0.12;
+        if (speedBoostTimer > 0) {
+          speedBoostTimer -= 1/60;
+          document.getElementById('speed-tag').style.display = 'block';
+          if (speedBoostTimer <= 0) document.getElementById('speed-tag').style.display = 'none';
+        }
+
+        let forward = 0, side = 0;
+        if (keys['KeyW'] || keys['ArrowUp']) forward -= 1;
+        if (keys['KeyS'] || keys['ArrowDown']) forward += 1;
+        if (keys['KeyA'] || keys['ArrowLeft']) side -= 1;
+        if (keys['KeyD'] || keys['ArrowRight']) side += 1;
+
+        if (forward !== 0 || side !== 0) {
+          const dx = side * Math.cos(playerRotationY) + forward * Math.sin(playerRotationY);
+          const dz = -side * Math.sin(playerRotationY) + forward * Math.cos(playerRotationY);
+          
+          let nextX = localPlayer.position.x + dx * baseSpeed;
+          if (!checkWallCollision(nextX, localPlayer.position.z)) {
+            localPlayer.position.x = nextX;
+          }
+
+          let nextZ = localPlayer.position.z + dz * baseSpeed;
+          if (!checkWallCollision(localPlayer.position.x, nextZ)) {
+            localPlayer.position.z = nextZ;
+          }
+        }
+
+        if (keys['Space'] && isGrounded) { 
+          playerVelY = jumpPower; 
+          isGrounded = false; 
+        }
+
+        localPlayer.position.y += playerVelY; 
+        if (!isGrounded) {
+          playerVelY += gravity;
+        }
+
+        if (localPlayer.position.y < -15) {
+          takeDamage(100);
+        }
+
+        const raycaster = new THREE.Raycaster(
+          new THREE.Vector3(localPlayer.position.x, localPlayer.position.y + 1.5, localPlayer.position.z),
+          new THREE.Vector3(0, -1, 0)
+        );
+        const hits = raycaster.intersectObjects(collidableObjects, true);
+
+        if (hits.length > 0) {
+          let validGroundY = -999;
+          for (let hit of hits) {
+            if (hit.point.y <= localPlayer.position.y + 1.2) {
+              validGroundY = Math.max(validGroundY, hit.point.y);
+            }
+          }
+
+          if (validGroundY !== -999) {
+            const groundY = validGroundY + 0.75;
+            if (playerVelY <= 0 && localPlayer.position.y <= groundY + 0.15) {
+              localPlayer.position.y = groundY;
+              playerVelY = 0;
+              isGrounded = true;
+            }
+          }
+        }
+
+        camera.position.set(localPlayer.position.x, localPlayer.position.y + 0.6, localPlayer.position.z);
+        camera.rotation.y = playerRotationY; camera.rotation.x = playerPitchX;
+        
+        if (gunGroup && !isMeleeSwinging) gunGroup.position.z = THREE.MathUtils.lerp(gunGroup.position.z, -0.35, 0.15);
+        if (remoteHpBarGroup) remoteHpBarGroup.lookAt(camera.position);
+
+        let inBush = false;
+        bushes.forEach(b => {
+          if (Math.hypot(localPlayer.position.x - b.x, localPlayer.position.z - b.z) < 1.3) {
+            inBush = true;
+          }
+        });
+
+        if (stealthTimer > 0) stealthTimer -= 1/60;
+
+        const isStealthActive = (stealthTimer > 0) || inBush;
+        const stealthTag = document.getElementById('stealth-tag');
+        if (isStealthActive) {
+          stealthTag.style.display = 'block';
+          stealthTag.innerText = inBush ? "🌿 부쉬 은신 중" : "👻 은신 상태 (투명 물약)";
+        } else {
+          stealthTag.style.display = 'none';
+        }
+
+        if (infAmmoTimer > 0) {
+          infAmmoTimer -= 1/60; document.getElementById('infammo-tag').style.display = 'block'; document.getElementById('hud-ammo').innerText = "∞ (무제한)";
+          if (infAmmoTimer <= 0) { document.getElementById('infammo-tag').style.display = 'none'; document.getElementById('hud-ammo').innerText = myAmmo; }
+        }
+
+        for (let i = spawnedItems.length - 1; i >= 0; i--) {
+          let item = spawnedItems[i]; 
+          item.mesh.rotation.y += 0.025; 
+          item.mesh.position.y = item.startY + Math.sin(now * 0.003) * 0.15; 
+          
+          if (localPlayer.position.distanceTo(new THREE.Vector3(item.pos.x, localPlayer.position.y, item.pos.z)) < 1.2) {
+            if (item.type === 'AMMO') {
+              myAmmo = maxAmmo; document.getElementById('hud-ammo').innerText = myAmmo;
+              if (isMeleeActive) { createGunModel(); myWeapon = initialWeapon; document.getElementById('hud-weapon').innerText = myWeapon; document.getElementById('hud-weapon').style.color = "#00ffcc"; }
+            }
+            else if (item.type === 'STEALTH') stealthTimer = 5.0;
+            else if (item.type === 'HEAL') healPlayer(50);
+            else if (item.type === 'INF_AMMO') infAmmoTimer = 10.0;
+            else if (item.type === 'SHIELD_RECHARGE') { shieldHp = maxShieldHp; document.getElementById('shield-bar-fill').style.width = '100%'; }
+            scene.remove(item.mesh); spawnedItems.splice(i, 1);
+          }
+        }
+
+        if (!isAiMode && conn && conn.open) {
+          conn.send({ type: 'MOVE', x: localPlayer.position.x, y: localPlayer.position.y, z: localPlayer.position.z, rotY: playerRotationY, isStealth: isStealthActive });
+        }
+
+        if (isAiMode) {
+          const dirToPlayer = new THREE.Vector3().subVectors(localPlayer.position, remotePlayer.position);
+          const dist = dirToPlayer.length();
+
+          if (!isStealthActive && dist > 4) {
+            dirToPlayer.y = 0; dirToPlayer.normalize();
+            remotePlayer.position.addScaledVector(dirToPlayer, 0.06);
+            remotePlayer.lookAt(localPlayer.position.x, remotePlayer.position.y, localPlayer.position.z);
+          }
+          if (!isStealthActive && now - aiLastShootTime > 800) {
+            aiLastShootTime = now;
+            const shootDir = dirToPlayer.clone().normalize();
+            shootDir.x += (Math.random() - 0.5) * 0.12; shootDir.y += (Math.random() - 0.5) * 0.12; shootDir.normalize();
+            spawnBullet(remotePlayer.position.clone().add(new THREE.Vector3(0, 0.1, 0)), shootDir, false, 12);
+          }
+        }
+
+        let inPoison = false;
+        activePoisons.forEach(p => {
+          if (localPlayer.position.distanceTo(p.pos) < 3.5) { inPoison = true; takeDamage(0.3); }
+          if (isAiMode && remotePlayer.position.distanceTo(p.pos) < 3.5) {
+            aiHp = Math.max(0, aiHp - 0.3); updateRemoteHpBar(); if (aiHp <= 0) handleEnemyDeath();
+          }
+        });
+        document.getElementById('poison-overlay').style.opacity = inPoison ? '1' : '0';
+
+        for (let i = bullets.length - 1; i >= 0; i--) {
+          let b = bullets[i]; const prevPos = b.mesh.position.clone();
+          const moveDist = b.isLocal && myWeapon === '저격총' ? 2.5 : 1.4;
+          b.mesh.position.addScaledVector(b.dir, moveDist);
+          b.life--;
+
+          const rayWall = new THREE.Raycaster(prevPos, b.dir, 0, prevPos.distanceTo(b.mesh.position));
+          const wallHits = rayWall.intersectObjects(collidableWalls, true);
+          if (wallHits.length > 0) {
+            createDecal(wallHits[0].point, wallHits[0].face.normal);
+            scene.remove(b.mesh); bullets.splice(i, 1); continue;
+          }
+
+          if (b.isLocal) {
+            const ray = new THREE.Raycaster(prevPos, b.dir, 0, prevPos.distanceTo(b.mesh.position));
+            const hits = ray.intersectObjects(remotePlayer.children, true);
+
+            if (hits.length > 0 && !isEnemyInvincible) {
+              const hitPart = hits[0].object.userData.part || 'heart';
+              let mult = 1.0;
+              if (hitPart === 'head') mult = 1.6;
+              else if (hitPart === 'leg') mult = 0.5;
+
+              let finalDmg = b.damage * mult;
+
+              if (isAiMode) {
+                aiHp = Math.max(0, aiHp - finalDmg); updateRemoteHpBar();
+                remotePlayer.children.forEach(c => { if (c.material) { c.material.color.setHex(0xffff00); setTimeout(() => c.material.color.setHex(0xff0055), 100); } });
+                if (aiHp <= 0) handleEnemyDeath();
+              } else {
+                conn.send({ type: 'HIT', damage: finalDmg });
+              }
+
+              scene.remove(b.mesh); bullets.splice(i, 1); continue;
+            }
+          }
+
+          if (!b.isLocal && b.mesh.position.distanceTo(localPlayer.position) < 0.9) {
+            takeDamage(b.damage);
+            scene.remove(b.mesh); bullets.splice(i, 1); continue;
+          }
+
+          if (b.life <= 0) { scene.remove(b.mesh); bullets.splice(i, 1); }
+        }
+
+        for (let i = activeSmokes.length - 1; i >= 0; i--) {
+          let smk = activeSmokes[i]; smk.group.children.forEach(c => { c.rotation.y += 0.01; c.scale.addScalar(0.002); });
+          if (now - smk.startTime >= 10000) { scene.remove(smk.group); activeSmokes.splice(i, 1); }
+        }
+        for (let i = activePoisons.length - 1; i >= 0; i--) {
+          let psn = activePoisons[i]; psn.group.children.forEach(c => { c.rotation.y -= 0.01; c.scale.addScalar(0.001); });
+          if (now - psn.startTime >= 10000) { scene.remove(psn.group); activePoisons.splice(i, 1); }
+        }
+        for (let i = activeExplosions.length - 1; i >= 0; i--) {
+          let exp = activeExplosions[i]; let elapsed = now - exp.startTime;
+          if (elapsed > 400) { scene.remove(exp.group); activeExplosions.splice(i, 1); }
+          else {
+            const scale = 1 + (elapsed / 400) * 8; exp.group.scale.set(scale, scale, scale);
+            exp.redMat.opacity = 0.8 * (1 - elapsed / 400); exp.yellowMat.opacity = 0.8 * (1 - elapsed / 400);
+          }
+        }
+      }
+      renderer.render(scene, camera);
+    }
+
+    function tryShoot() {
+      const now = Date.now();
+
+      if (isMeleeActive) {
+        if (selectedMeleeWeapon === '포탈건') {
+          if (now - lastShootTime < 300) return;
+          lastShootTime = now;
+          firePortalGun('RED');
+          return;
+        }
+        if (now - lastShootTime < 450) return;
+        lastShootTime = now;
+        executeMeleeAttack();
+        return;
+      }
+
+      if (now - lastShootTime < fireIntervalMs) return;
+
+      if (infAmmoTimer > 0 || myAmmo > 0) {
+        lastShootTime = now;
+        if (infAmmoTimer <= 0) { myAmmo--; document.getElementById('hud-ammo').innerText = myAmmo; }
+
+        if (gunGroup) gunGroup.position.z += 0.08;
+        const flash = new THREE.PointLight(0xffaa00, 3, 4);
+        flash.position.set(localPlayer.position.x, localPlayer.position.y + 0.8, localPlayer.position.z);
+        scene.add(flash); setTimeout(() => scene.remove(flash), 40);
+
+        const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+        const spawnPos = camera.position.clone().add(dir.clone().multiplyScalar(0.4));
+
+        for(let i=0; i<myBulletCount; i++) {
+          let shootDir = dir.clone();
+          if (myBulletCount > 1) { 
+            shootDir.x += (Math.random() - 0.5) * 0.15;
+            shootDir.y += (Math.random() - 0.5) * 0.15;
+            shootDir.normalize();
+          }
+          spawnBullet(spawnPos, shootDir, true, weaponBaseDmg);
+          
+          if (!isAiMode && conn && conn.open) {
+            conn.send({ type: 'SHOOT_BULLET', pos: { x: spawnPos.x, y: spawnPos.y, z: spawnPos.z }, dir: { x: shootDir.x, y: shootDir.y, z: shootDir.z }, damage: weaponBaseDmg });
+          }
+        }
+
+        if (myAmmo === 0 && infAmmoTimer <= 0) {
+          switchToMeleeWeapon();
+        }
+      }
+    }
+
+    function switchToMeleeWeapon() {
+      myWeapon = `🗡️ ${selectedMeleeWeapon}`;
+      document.getElementById('hud-weapon').innerText = myWeapon;
+      document.getElementById('hud-weapon').style.color = "#ffaa00";
+      document.getElementById('hud-ammo').innerText = "무제한";
+      document.getElementById('notice-overlay').style.display = 'block';
+      setTimeout(() => document.getElementById('notice-overlay').style.display = 'none', 2000);
+      createMeleeModel();
+    }
+
+    function executeMeleeAttack() {
+      isMeleeSwinging = true;
+      gunGroup.rotation.y = -Math.PI / 3;
+      setTimeout(() => { gunGroup.rotation.y = 0; isMeleeSwinging = false; }, 200);
+
+      if (selectedMeleeWeapon === '돌진 검') {
+        const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
+        localPlayer.position.addScaledVector(dir, 4.0);
+      }
+
+      let meleeDmg = 30;
+      if (selectedMeleeWeapon === '광선검') meleeDmg = 45;
+      else if (selectedMeleeWeapon === '돌진 검') meleeDmg = 35;
+
+      if (localPlayer.position.distanceTo(remotePlayer.position) < 2.5 && !isEnemyInvincible) {
+        if (isAiMode) {
+          aiHp = Math.max(0, aiHp - meleeDmg); updateRemoteHpBar();
+          if (aiHp <= 0) handleEnemyDeath();
+        } else {
+          conn.send({ type: 'HIT', damage: meleeDmg });
+        }
+      }
+    }
+
+    function spawnBullet(startPos, dirVector, isLocal, dmg) {
+      const bGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.5);
+      const bMat = new THREE.MeshBasicMaterial({ color: isLocal ? 0xffff00 : 0xff2200 });
+      const bulletMesh = new THREE.Mesh(bGeo, bMat);
+      bulletMesh.position.copy(startPos); bulletMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dirVector);
+      scene.add(bulletMesh);
+      bullets.push({ mesh: bulletMesh, dir: dirVector, life: 40, isLocal: isLocal, damage: dmg });
+    }
+
+    function takeDamage(dmg) {
+      if (isMyInvincible) return;
+
+      if (isShieldActive && shieldHp > 0) {
+        shieldHp = Math.max(0, shieldHp - dmg);
+        document.getElementById('shield-bar-fill').style.width = (shieldHp / maxShieldHp) * 100 + '%';
+        if (shieldHp <= 0) { isShieldActive = false; localShieldMesh.visible = false; }
+        sendHpUpdate();
+        return; 
+      }
+
+      myHp = Math.max(0, myHp - dmg);
+      document.getElementById('hp-bar-fill').style.width = myHp + '%';
+      sendHpUpdate();
+
+      if (myHp <= 0) {
+        enemyScore++; updateScoreHUD();
+        if (!isAiMode && conn && conn.open) conn.send({ type: 'I_DIED' });
+        enemyScore >= 5 ? triggerGameOver(false) : respawnLocalPlayer();
+      }
+    }
+
+    function healPlayer(amount) {
+      myHp = Math.min(100, myHp + amount);
+      document.getElementById('hp-bar-fill').style.width = myHp + '%';
+      sendHpUpdate();
+    }
+
+    function sendHpUpdate() {
+      if (!isAiMode && conn && conn.open) conn.send({ type: 'HP_UPDATE', hp: myHp });
+    }
+
+    function triggerInvincibility(isLocal) {
+      if (isLocal) {
+        isMyInvincible = true; 
+        document.getElementById('invincible-tag').style.display = 'block';
+        setTimeout(() => { isMyInvincible = false; document.getElementById('invincible-tag').style.display = 'none'; }, 3000);
+      } else {
+        isEnemyInvincible = true; 
+        if (remotePlayer) remotePlayer.visible = false; 
+        if (remoteInvicSphere) remoteInvicSphere.visible = true;
+        setTimeout(() => { isEnemyInvincible = false; if (remotePlayer) remotePlayer.visible = true; if (remoteInvicSphere) remoteInvicSphere.visible = false; }, 3000);
+      }
+    }
+
+    function handleEnemyDeath() {
+      myScore++; updateScoreHUD();
+      myScore >= 5 ? triggerGameOver(true) : respawnEnemyPlayer();
+    }
+
+    function respawnLocalPlayer() {
+      myHp = 100; shieldHp = maxShieldHp; myAmmo = initialAmmo; myWeapon = initialWeapon;
+      createGunModel();
+      document.getElementById('hp-bar-fill').style.width = '100%'; document.getElementById('shield-bar-fill').style.width = '100%';
+      document.getElementById('hud-weapon').innerText = myWeapon; document.getElementById('hud-weapon').style.color = "#00ffcc"; document.getElementById('hud-ammo').innerText = myAmmo;
+      localPlayer.position.set(isHost ? -15 : 15, 0.75, 0); triggerInvincibility(true);
+      sendHpUpdate();
+    }
+
+    function respawnEnemyPlayer() {
+      aiHp = 100; updateRemoteHpBar();
+      remotePlayer.position.set(isHost ? 15 : -15, 0.75, 0); triggerInvincibility(false);
+    }
+
+    function updateScoreHUD() {
+      document.getElementById('my-score').innerText = myScore; document.getElementById('enemy-score').innerText = enemyScore;
+    }
+
+    function useSpecialItem() {
+      if (itemCooldownTimer > 0) return;
+      itemCooldownTimer = ITEM_COOLDOWN_TIME;
+
+      let col = 0x333333;
+      if (myItem.includes('화염병')) col = 0xff4400; else if (myItem.includes('연막탄')) col = 0x888888; else if (myItem.includes('섬광탄')) col = 0xffff00; else if (myItem.includes('독가스탄')) col = 0x00ff00;
+
+      const proj = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.5 }));
+      const spawnPos = camera.position.clone(); proj.position.copy(spawnPos); scene.add(proj);
+
+      const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y += 0.2;
+      let velocity = dir.normalize().multiplyScalar(0.42), grav = -0.015;
+
+      const projInterval = setInterval(() => {
+        proj.position.add(velocity); velocity.y += grav;
+        if (proj.position.y <= 0.25) {
+          clearInterval(projInterval); const landPos = proj.position.clone(); landPos.y = 0.05; scene.remove(proj);
+          triggerItemEffect(myItem, landPos);
+        }
+      }, 16);
+
+      if (!isAiMode && conn && conn.open) conn.send({ type: 'USE_ITEM', item: myItem, pos: spawnPos });
+    }
+
+    function playExplosionEffect(pos) {
+      const group = new THREE.Group(); group.position.copy(pos); scene.add(group);
+      const redMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.8 });
+      const yellowMat = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.8 });
+      group.add(new THREE.Mesh(new THREE.SphereGeometry(0.8, 16, 16), redMat));
+      group.add(new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16), yellowMat));
+      activeExplosions.push({ group, startTime: Date.now(), redMat, yellowMat });
+    }
+
+    function triggerItemEffect(itemName, pos) {
+      playExplosionEffect(pos);
+      if (itemName.includes('화염병')) createFireZone(pos);
+      else if (itemName.includes('연막탄')) createSmokeZone(pos);
+      else if (itemName.includes('섬광탄')) createFlashbangExplosion(pos);
+      else if (itemName.includes('독가스탄')) createPoisonZone(pos);
+      else createExplosion(pos);
+    }
+
+    function createFireZone(pos) {
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(2.8, 2.8, 0.1, 16), new THREE.MeshBasicMaterial({ color: 0xff3300, transparent: true, opacity: 0.7 }));
+      mesh.position.copy(pos); scene.add(mesh);
+      const light = new THREE.PointLight(0xff6600, 4, 8); light.position.set(pos.x, pos.y + 0.8, pos.z); scene.add(light);
+      activeFires.push({ mesh, light, pos, radius: 2.8, startTime: Date.now(), duration: 10000 });
+    }
+
+    function createSmokeZone(pos) {
+      const group = new THREE.Group(); const mat = new THREE.MeshStandardMaterial({ color: 0x555566, transparent: true, opacity: 0.85, roughness: 1.0 });
+      for (let i = 0; i < 6; i++) {
+        const sp = new THREE.Mesh(new THREE.SphereGeometry(1.4 + Math.random() * 0.5, 12, 12), mat);
+        sp.position.set((Math.random() - 0.5) * 1.5, 0.8 + Math.random() * 0.5, (Math.random() - 0.5) * 1.5); group.add(sp);
+      }
+      group.position.copy(pos); scene.add(group); activeSmokes.push({ group, startTime: Date.now(), duration: 10000 });
+    }
+
+    function createPoisonZone(pos) {
+      const group = new THREE.Group(); const mat = new THREE.MeshStandardMaterial({ color: 0x22ff00, transparent: true, opacity: 0.6, roughness: 0.8 });
+      for (let i = 0; i < 6; i++) {
+        const sp = new THREE.Mesh(new THREE.SphereGeometry(1.5 + Math.random() * 0.5, 12, 12), mat);
+        sp.position.set((Math.random() - 0.5) * 2, 0.8 + Math.random(), (Math.random() - 0.5) * 2); group.add(sp);
+      }
+      group.position.copy(pos); scene.add(group); activePoisons.push({ group, pos, startTime: Date.now(), duration: 10000 });
+    }
+
+    function createFlashbangExplosion(pos) {
+      const light = new THREE.PointLight(0xffffff, 10, 15); light.position.copy(pos); scene.add(light); setTimeout(() => scene.remove(light), 250);
+      if (localPlayer.position.distanceTo(pos) < 10.0) {
+        document.getElementById('flash-overlay').style.opacity = '1';
+        setTimeout(() => { document.getElementById('flash-overlay').style.transition = 'opacity 2.5s ease-out'; document.getElementById('flash-overlay').style.opacity = '0';
+          setTimeout(() => { document.getElementById('flash-overlay').style.transition = 'opacity 0.1s ease'; }, 2500); }, 800);
+      }
+    }
+
+    function createExplosion(pos) {
+      const light = new THREE.PointLight(0xffff00, 6, 10); light.position.copy(pos); scene.add(light);
+      if (localPlayer.position.distanceTo(pos) < 3.5) takeDamage(25);
+      if (isAiMode && remotePlayer.position.distanceTo(pos) < 3.5 && !isEnemyInvincible) {
+        aiHp = Math.max(0, aiHp - 25); updateRemoteHpBar(); if (aiHp <= 0) handleEnemyDeath();
+      }
+      setTimeout(() => scene.remove(light), 300);
+    }
+
+    function highlightWeapon(btn, name, ammo, isAuto, fireInterval, count, dmg) {
+      btn.parentElement.querySelectorAll('.option-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active');
+      maxAmmo = initialAmmo = myAmmo = ammo; initialWeapon = myWeapon = name;
+      isAutoWeapon = isAuto; fireIntervalMs = fireInterval; myBulletCount = count; weaponBaseDmg = dmg;
+    }
+
+    function highlightMelee(btn, name) {
+      btn.parentElement.querySelectorAll('.option-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active');
+      selectedMeleeWeapon = name;
+    }
+
+    function confirmWeaponStep() {
+      document.getElementById('hud-weapon').innerText = myWeapon; document.getElementById('hud-ammo').innerText = myAmmo;
+      document.getElementById('step-weapon').style.display = 'none'; document.getElementById('step-item').style.display = 'block';
+    }
+
+    function highlightItem(btn, name) {
+      btn.parentElement.querySelectorAll('.option-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active');
+      myItem = name; document.getElementById('hud-item').innerText = `${myItem} (준비 완료)`;
+    }
+
+    function triggerGameOver(isWin) {
+      isGameRunning = false; setAimMode(false); clearAllEffects();
+      if (document.pointerLockElement) document.exitPointerLock();
+      hideInGameHUD();
+      const title = document.getElementById('gameover-title');
+      title.innerText = isWin ? "🏆 VICTORY! 승리!" : "💀 GAME OVER! 패배"; title.style.color = isWin ? "#00ffcc" : "#ff0055";
+      isMyRematch = isPeerRematch = false;
+      const rematchBtn = document.getElementById('btn-rematch'); rematchBtn.innerText = "🔄 다시하기"; rematchBtn.disabled = false;
+      document.getElementById('rematch-status-msg').innerText = ""; document.getElementById('step-gameover').style.display = 'block';
+    }
+
+    function pressRematch() {
+      if (isAiMode) return resetAndRestartGame();
+      isMyRematch = true;
+      document.getElementById('btn-rematch').innerText = "⌛ 상대방 응답 대기 중..."; document.getElementById('btn-rematch').disabled = true;
+      if (conn && conn.open) conn.send({ type: 'REMATCH_REQ' });
+      if (isMyRematch && isPeerRematch) resetAndRestartGame();
+    }
+
+    function pressExit() {
+      if (!isAiMode && conn && conn.open) conn.send({ type: 'EXIT_MATCH' });
+      location.reload();
+    }
+
+    function resetAndRestartGame() {
+      document.getElementById('step-gameover').style.display = 'none'; document.getElementById('ingame-menu').style.display = 'none';
+      clearAllEffects(); myScore = enemyScore = 0; updateScoreHUD();
+      respawnLocalPlayer(); respawnEnemyPlayer();
+      showInGameHUD();
+      isGameRunning = true;
+    }
+
+    function showInGameHUD() {
+      document.getElementById('score-board').style.display = 'block';
+      document.getElementById('hud-bottom-left').style.display = 'block';
+      document.getElementById('crosshair').style.display = 'block';
+      document.getElementById('controls-tip').style.display = 'block';
+    }
+
+    function hideInGameHUD() {
+      document.getElementById('score-board').style.display = 'none';
+      document.getElementById('hud-bottom-left').style.display = 'none';
+      document.getElementById('crosshair').style.display = 'none';
+      document.getElementById('controls-tip').style.display = 'none';
+    }
+
+    function startAiMode() {
+      isAiMode = true; document.getElementById('hud-status').innerText = "🤖 AI 연습 모드"; document.getElementById('hud-status').style.color = "#ffaa00";
+      document.getElementById('step-code').style.display = 'none'; document.getElementById('step-weapon').style.display = 'block';
+    }
+
+    /* 방 만들기 및 접속 관련 업데이트된 로직 */
+    function createRoom() {
+      isAiMode = false;
+      const inputVal = document.getElementById('room-code-input').value.trim();
+      let targetId = "";
+
+      if (inputVal.includes('.')) {
+        // IP 주소를 직접 입력하고 방을 만든 경우 (Host가 자기 IP를 입력하여 방 생성)
+        const cleanIp = inputVal.replace(/[^0-9a-zA-Z]/g, '-');
+        targetId = PEER_PREFIX + "ip-" + cleanIp;
+        document.getElementById('code-status-msg').innerText = `내 IP [ ${inputVal} ] 기준 방 생성 완료! (접속 대기 중)`;
+      } else {
+        // 기본 4자리 랜덤 코드 방식
+        const code = (inputVal.length === 4) ? inputVal : Math.floor(1000 + Math.random() * 9000).toString();
+        document.getElementById('room-code-input').value = code;
+        targetId = PEER_PREFIX + code;
+        document.getElementById('code-status-msg').innerText = `발급된 코드: [ ${code} ] - 상대방 접속 대기 중...`;
+      }
+
+      isHost = true;
+      if (peer) peer.destroy();
+      peer = new Peer(targetId);
+
+      peer.on('open', () => {
+        document.getElementById('hud-status').innerText = "🟡 호스트 대기 중";
+      });
+
+      peer.on('connection', connection => { 
+        conn = connection; 
+        setupDataListener(); 
       });
 
       peer.on('error', err => {
-        setStatus("❌ 방 생성 오류: " + err.type, "#ff0055");
+        console.error(err);
+        document.getElementById('code-status-msg').innerText = "❌ 방 생성 실패. 다른 코드를 사용해 주세요.";
       });
     }
 
     function joinRoom() {
-      const inputVal = document.getElementById('input-team-code').value.trim();
-      if (!/^\d{4}$/.test(inputVal)) {
-        setStatus("⚠️ 4자리 팀코드를 입력하세요!", "#ffaa00");
-        return;
-      }
-
-      isAiMode = false; isHost = false; gameStarted = false;
-      cleanupConnection();
-
-      const targetId = PEER_PREFIX + inputVal;
-      setStatus(`⏳ 방 [ ${inputVal} ] 접속 중...`, "#00bfff");
-
-      peer = new Peer(getPeerOptions());
-
-      peer.on('open', () => {
-        conn = peer.connect(targetId, { reliable: true });
-        setupNetworkConnection();
+      const code = document.getElementById('room-code-input').value.trim();
+      if (code.length !== 4) return alert("4자리 코드를 입력하세요!");
+      isAiMode = isHost = false; 
+      document.getElementById('code-status-msg').innerText = `코드 [ ${code} ] 접속 시도 중...`;
+      
+      if (peer) peer.destroy();
+      peer = new Peer(); 
+      peer.on('open', () => { 
+        conn = peer.connect(PEER_PREFIX + code); 
+        setupDataListener(); 
       });
 
       peer.on('error', err => {
-        setStatus("❌ 접속 실패: " + err.type, "#ff0055");
+        console.error(err);
+        document.getElementById('code-status-msg').innerText = "❌ 접속 실패. 코드를 다시 확인하세요.";
       });
     }
 
-    function setupNetworkConnection() {
-      if (!conn) return;
+    function joinRoomByIp() {
+      const ipInput = document.getElementById('room-code-input').value.trim();
+      if (!ipInput || !ipInput.includes('.')) return alert("올바른 IP 주소를 입력하세요! (예: 192.168.0.15)");
 
+      isAiMode = isHost = false; 
+      document.getElementById('code-status-msg').innerText = `상대방 IP [ ${ipInput} ] 로 접속 시도 중...`;
+
+      const cleanIp = ipInput.replace(/[^0-9a-zA-Z]/g, '-');
+      const targetPeerId = PEER_PREFIX + "ip-" + cleanIp;
+
+      if (peer) peer.destroy();
+      peer = new Peer(); 
+      peer.on('open', () => { 
+        conn = peer.connect(targetPeerId); 
+        setupDataListener(); 
+      });
+
+      peer.on('error', err => {
+        console.error(err);
+        document.getElementById('code-status-msg').innerText = "❌ IP 접속 실패. 상대방 방이 열려있는지 확인하세요.";
+      });
+    }
+
+    function setupDataListener() {
       conn.on('open', () => {
-        setStatus("✅ 상대방과 연결되었습니다!", "#00ff00");
-        enemyReady = true;
-        sendNetwork({ type: 'ready' });
+        document.getElementById('hud-status').innerText = "🟢 상대방 연결됨"; document.getElementById('hud-status').style.color = "#00ffcc";
+        document.getElementById('step-code').style.display = 'none'; document.getElementById('step-weapon').style.display = 'block';
       });
 
-      conn.on('data', handleNetworkData);
-      conn.on('close', () => {
-        if (gameStarted) setStatus("⚠️ 상대방과의 연결이 끊어졌습니다.", "#ffaa00");
+      conn.on('data', data => {
+        if (data.type === 'READY') { isPeerReady = true; document.getElementById('ready-status-msg').innerText = "🟢 상대방 준비 완료!"; checkBothReady(); }
+        else if (data.type === 'START_GAME') realStartGame();
+        else if (data.type === 'MOVE') { remotePlayer.position.set(data.x, data.y, data.z); if (data.rotY !== undefined) remotePlayer.rotation.y = data.rotY; remotePlayer.visible = !data.isStealth; }
+        else if (data.type === 'SHIELD_TOGGLE') remoteShieldMesh.visible = data.active;
+        else if (data.type === 'SHOOT_BULLET') spawnBullet(new THREE.Vector3(data.pos.x, data.pos.y, data.pos.z), new THREE.Vector3(data.dir.x, data.dir.y, data.dir.z), false, data.damage || 10);
+        else if (data.type === 'HIT') { takeDamage(data.damage); }
+        else if (data.type === 'HP_UPDATE') { aiHp = data.hp; updateRemoteHpBar(); } 
+        else if (data.type === 'I_DIED') handleEnemyDeath();
+        else if (data.type === 'REMATCH_REQ') { isPeerRematch = true; document.getElementById('rematch-status-msg').innerText = "🟢 상대방이 다시하기를 요청합니다!"; if (isMyRematch) resetAndRestartGame(); }
+        else if (data.type === 'EXIT_MATCH') { document.getElementById('rematch-status-msg').innerText = "❌ 상대방이 퇴장했습니다."; document.getElementById('btn-rematch').disabled = true; }
+        else if (data.type === 'USE_ITEM') triggerItemEffect(data.item, new THREE.Vector3(data.pos.x, 0.05, data.pos.z));
+        else if (data.type === 'SPAWN_PORTAL') {
+          const point = new THREE.Vector3(data.pos.x, data.pos.y, data.pos.z);
+          const normal = new THREE.Vector3(data.normal.x, data.normal.y, data.normal.z);
+          if (data.portalType === 'RED') {
+            if (!redPortalMesh) { redPortalMesh = createPortalMesh(0xff0000); scene.add(redPortalMesh); }
+            redPortalMesh.position.copy(point).add(normal.clone().multiplyScalar(0.05));
+            redPortalMesh.lookAt(point.clone().add(normal));
+            redPortalPos = redPortalMesh.position.clone();
+          } else {
+            if (!bluePortalMesh) { bluePortalMesh = createPortalMesh(0x0088ff); scene.add(bluePortalMesh); }
+            bluePortalMesh.position.copy(point).add(normal.clone().multiplyScalar(0.05));
+            bluePortalMesh.lookAt(point.clone().add(normal));
+            bluePortalPos = bluePortalMesh.position.clone();
+          }
+        }
       });
     }
 
-    function handleNetworkData(data) {
-      if (!data || !data.type) return;
-
-      if (data.type === 'ready') {
-        enemyReady = true;
-        if (isHost && !gameStarted) {
-          sendNetwork({ type: 'start' });
-          startGame();
-        }
-      } else if (data.type === 'start') {
-        if (!gameStarted) startGame();
-      } else if (data.type === 'update') {
-        enemyMesh.position.set(data.x || 0, data.y || 1.5, data.z || 0);
-        enemyMesh.rotation.y = data.rot || 0;
-        enemyMesh.material.opacity = data.stealth ? 0.2 : 1;
-        player.enemyScore = data.score || 0;
-        document.getElementById('enemy-score').innerText = player.enemyScore;
-      } else if (data.type === 'hit') {
-        if (!player.isInvincible) {
-          applyDamage(data.dmg || 0);
-          showFlash('#ff0000');
-        }
-      } else if (data.type === 'portal') {
-        createPortalEffect(data.x, data.y, data.z, data.color);
-      } else if (data.type === 'shield_deployed') {
-        deployDeployableShield(data.x, data.y, data.z, data.rot, true);
-      } else if (data.type === 'potion_thrown') {
-        createExplosion(data.x, data.y, data.z, 0xffaa00, true);
-      }
+    function pressReady() {
+      if (isAiMode) return realStartGame();
+      isMyReady = true; document.getElementById('btn-ready').innerText = "⌛ 대기 중..."; document.getElementById('btn-ready').disabled = true;
+      document.getElementById('ready-status-msg').innerText = "내가 준비를 마쳤습니다.";
+      if (conn && conn.open) conn.send({ type: 'READY' }); checkBothReady();
     }
 
-    function sendNetwork(data) {
-      if (!isAiMode && conn && conn.open) {
-        try { conn.send(data); } catch (e) {}
-      }
+    function checkBothReady() {
+      if (isMyReady && isPeerReady) { if (isHost && conn && conn.open) conn.send({ type: 'START_GAME' }); realStartGame(); }
     }
 
-    function startAiMode() {
-      cleanupConnection();
-      isAiMode = true; isHost = true; enemyReady = true;
-      startGame();
+    function realStartGame() {
+      document.getElementById('step-item').style.display = 'none';
+      showInGameHUD();
+      init3D(); isGameRunning = true; triggerInvincibility(true); triggerInvincibility(false);
     }
-
-    /* =========================================
-       3. 무기, 스킬 & 투사체 로직
-       ========================================= */
-    const WEAPONS = {
-      RIFLE: { name: '기본 소총', dmg: 10, speed: 80, ammo: 30, maxAmmo: 30, fireRate: 150, reload: 1500, recoil: 0.02 },
-      SNIPER: { name: '스나이퍼', dmg: 50, speed: 150, ammo: 5, maxAmmo: 5, fireRate: 1200, reload: 2500, recoil: 0.1 },
-      PORTAL_GUN: { name: '포탈건', dmg: 0, speed: 100, ammo: Infinity, maxAmmo: Infinity, fireRate: 500, reload: 0, recoil: 0 }
-    };
-    
-    let currentWeaponKey = 'RIFLE';
-    let previousWeaponKey = 'RIFLE';
-    let lastFireTime = 0;
-    let isReloading = false;
-    const bullets = [];
-
-    let bluePortal = null, redPortal = null;
-    
-    const gunMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(0.1, 0.1, 0.4),
-      new THREE.MeshStandardMaterial({ color: 0x555566 })
-    );
-    gunMesh.position.set(0.2, -0.2, -0.4);
-    camera.add(gunMesh);
-    scene.add(camera);
-
-    function createPortalEffect(x, y, z, colorStr) {
-      const isBlue = colorStr === 'blue';
-      const pGeo = new THREE.TorusGeometry(1, 0.1, 8, 24);
-      const pMat = new THREE.MeshBasicMaterial({ color: isBlue ? 0x0055ff : 0xff5500, transparent: true, opacity: 0.8 });
-      const pMesh = new THREE.Mesh(pGeo, pMat);
-      pMesh.position.set(x, y + 1, z);
-      pMesh.lookAt(camera.position);
-
-      if (isBlue) {
-        if (bluePortal) scene.remove(bluePortal.mesh);
-        bluePortal = { mesh: pMesh, x, y, z };
-      } else {
-        if (redPortal) scene.remove(redPortal.mesh);
-        redPortal = { mesh: pMesh, x, y, z };
-      }
-      scene.add(pMesh);
-    }
-
-    function fireWeapon(isRightClick = false) {
-      const now = Date.now();
-      const w = WEAPONS[currentWeaponKey];
-      
-      if (isReloading || now - lastFireTime < w.fireRate) return;
-      if (w.ammo <= 0 && !player.isInfAmmo) { reloadWeapon(); return; }
-
-      lastFireTime = now;
-      if (!player.isInfAmmo && w.ammo !== Infinity) {
-        w.ammo--;
-        updateHud();
-      }
-
-      player.pitch += w.recoil;
-      const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-
-      if (currentWeaponKey === 'PORTAL_GUN') {
-        const raycaster = new THREE.Raycaster(camera.position, dir);
-        const intersects = raycaster.intersectObjects(collidables);
-        if (intersects.length > 0) {
-          const p = intersects[0].point;
-          const color = isRightClick ? 'blue' : 'red';
-          createPortalEffect(p.x, p.y, p.z, color);
-          sendNetwork({ type: 'portal', x: p.x, y: p.y, z: p.z, color: color });
-        }
-        return;
-      }
-
-      const bMesh = new THREE.Mesh(
-        new THREE.BoxGeometry(0.05, 0.05, 0.2),
-        new THREE.MeshBasicMaterial({ color: (currentWeaponKey === 'SNIPER') ? 0xff00ff : 0x00ffcc })
-      );
-      bMesh.position.copy(camera.position);
-      bMesh.quaternion.copy(camera.quaternion);
-      scene.add(bMesh);
-      bullets.push({ mesh: bMesh, dir: dir, speed: w.speed, dmg: w.dmg, life: 100 });
-    }
-
-    function reloadWeapon() {
-      const w = WEAPONS[currentWeaponKey];
-      if (w.ammo === w.maxAmmo || isReloading) return;
-      isReloading = true;
-      showNotice("재장전 중...", w.reload);
-      setTimeout(() => {
-        w.ammo = w.maxAmmo;
-        isReloading = false;
-        updateHud();
-      }, w.reload);
-    }
-
-    function useShield() {
-      if (player.shieldItems <= 0) return;
-      player.shieldItems--; updateHud();
-      const fwd = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
-      fwd.y = 0; fwd.normalize();
-      const sPos = camera.position.clone().add(fwd.multiplyScalar(2));
-      sPos.y = 0.5;
-      deployDeployableShield(sPos.x, sPos.y, sPos.z, camera.rotation.y, false);
-      sendNetwork({ type: 'shield_deployed', x: sPos.x, y: sPos.y, z: sPos.z, rot: camera.rotation.y });
-    }
-    
-    function deployDeployableShield(x,y,z,rot, isEnemy) {
-      const sGeo = new THREE.BoxGeometry(4, 3, 0.5);
-      const sMat = new THREE.MeshStandardMaterial({ color: isEnemy ? 0xff0000 : 0x00ffff, transparent:true, opacity:0.6 });
-      const sMesh = new THREE.Mesh(sGeo, sMat);
-      sMesh.position.set(x,y,z);
-      sMesh.rotation.y = rot;
-      scene.add(sMesh);
-      collidables.push(sMesh);
-    }
-
-    function usePotion() {
-      if (player.potionItems <= 0) return;
-      player.potionItems--; updateHud();
-      const fwd = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
-      const pPos = camera.position.clone().add(fwd.multiplyScalar(15));
-      createExplosion(pPos.x, pPos.y, pPos.z, 0xffaa00, false);
-      sendNetwork({ type: 'potion_thrown', x: pPos.x, y: pPos.y, z: pPos.z });
-      
-      if (pPos.distanceTo(enemyMesh.position) < 8) {
-        if (!isAiMode) sendNetwork({ type: 'hit', dmg: 40 });
-        else aiPlayer.hp -= 40;
-      }
-    }
-
-    function createExplosion(x,y,z, color, isEnemy) {
-      const eMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(8, 16, 16),
-        new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.5, wireframe: true })
-      );
-      eMesh.position.set(x,y,z);
-      scene.add(eMesh);
-      let s = 1;
-      const t = setInterval(() => {
-        s += 0.2; eMesh.scale.set(s,s,s); eMesh.material.opacity -= 0.05;
-        if(eMesh.material.opacity <= 0) { clearInterval(t); scene.remove(eMesh); }
-      }, 30);
-      if (isEnemy && camera.position.distanceTo(eMesh.position) < 8 && !player.isInvincible) {
-        applyDamage(30); showFlash('#ff5500');
-      }
-    }
-
-    /* =========================================
-       4. 게임 루프 & 시스템 제어
-       ========================================= */
-    const enemyMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(0.8, 1.8, 0.8),
-      new THREE.MeshStandardMaterial({ color: 0xff0055 })
-    );
-    scene.add(enemyMesh);
-    enemyMesh.position.set(0, -100, 0);
-
-    function startGame() {
-      if (gameStarted) return;
-      document.getElementById('ui-layer').style.display = 'none';
-      document.getElementById('score-board').style.display = 'block';
-      document.getElementById('hud-bottom-left').style.display = 'block';
-      document.getElementById('controls-tip').style.display = 'block';
-      document.body.requestPointerLock();
-      
-      player.x = (isHost ? 20 : -20);
-      player.z = (isHost ? 20 : -20);
-      camera.position.set(player.x, player.y, player.z);
-      
-      if (isAiMode) enemyMesh.position.set(aiPlayer.x, aiPlayer.y, aiPlayer.z);
-      
-      gameStarted = true;
-      updateHud();
-      requestAnimationFrame(gameLoop);
-    }
-
-    function applyDamage(amt) {
-      if (player.shield > 0) {
-        player.shield -= amt;
-        if (player.shield < 0) { player.hp += player.shield; player.shield = 0; }
-      } else {
-        player.hp -= amt;
-      }
-      if (player.hp <= 0) respawn();
-      updateHud();
-    }
-
-    function respawn() {
-      player.enemyScore++;
-      document.getElementById('enemy-score').innerText = player.enemyScore;
-      player.hp = player.maxHp;
-      player.shield = player.maxShield;
-      player.x = (isHost ? 20 : -20) + (Math.random() * 6 - 3);
-      player.z = (isHost ? 20 : -20) + (Math.random() * 6 - 3);
-      camera.position.set(player.x, player.y, player.z);
-      showFlash('#ff0000');
-    }
-
-    function showFlash(colorHex) {
-      const overlay = document.getElementById('flash-overlay');
-      overlay.style.background = colorHex;
-      overlay.style.opacity = '0.5';
-      setTimeout(() => overlay.style.opacity = '0', 100);
-    }
-
-    function showNotice(text, duration = 1500) {
-      const notice = document.getElementById('notice-overlay');
-      notice.innerText = text;
-      notice.style.display = 'block';
-      setTimeout(() => { notice.style.display = 'none'; }, duration);
-    }
-
-    let isScoped = false;
-    document.addEventListener('mousemove', e => {
-      if (document.pointerLockElement !== document.body) return;
-      const sensitivity = isScoped ? 0.001 : 0.0025;
-      player.yaw -= e.movementX * sensitivity;
-      player.pitch -= e.movementY * sensitivity;
-      player.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, player.pitch));
-    });
-
-    document.addEventListener('mousedown', e => {
-      if (document.pointerLockElement !== document.body) return;
-      if (e.button === 0) fireWeapon(false);
-      else if (e.button === 2) {
-        if (currentWeaponKey === 'PORTAL_GUN') fireWeapon(true);
-        else if (currentWeaponKey === 'SNIPER') {
-          isScoped = !isScoped;
-          document.getElementById('scope-overlay').style.display = isScoped ? 'block' : 'none';
-          document.getElementById('crosshair').style.display = isScoped ? 'none' : 'block';
-          camera.fov = isScoped ? 25 : 75;
-          camera.updateProjectionMatrix();
-        }
-      }
-    });
-
-    document.addEventListener('contextmenu', e => e.preventDefault());
-
-    window.addEventListener('keydown', e => {
-      if (!gameStarted) return;
-      if (e.code === 'KeyE') switchWeapon();
-      if (e.code === 'KeyF') useShield();
-      if (e.code === 'KeyG') usePotion();
-      if (e.code === 'KeyQ') toggleMenu();
-    });
-
-    function switchWeapon() {
-      if (currentWeaponKey === 'PORTAL_GUN') {
-        currentWeaponKey = previousWeaponKey;
-      } else {
-        previousWeaponKey = currentWeaponKey;
-        currentWeaponKey = 'PORTAL_GUN';
-      }
-      if (isScoped) {
-        isScoped = false;
-        document.getElementById('scope-overlay').style.display = 'none';
-        document.getElementById('crosshair').style.display = 'block';
-        camera.fov = 75;
-        camera.updateProjectionMatrix();
-      }
-      updateHud();
-    }
-
-    function updateHud() {
-      document.getElementById('hud-hp-text').innerText = `${Math.max(0, Math.round(player.hp))} / ${player.maxHp}`;
-      document.getElementById('hud-hp-bar').style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
-      document.getElementById('hud-shield-text').innerText = `${Math.max(0, Math.round(player.shield))} / ${player.maxShield}`;
-      document.getElementById('hud-shield-bar').style.width = `${Math.max(0, (player.shield / player.maxShield) * 100)}%`;
-
-      const w = WEAPONS[currentWeaponKey];
-      document.getElementById('hud-weapon').innerText = w.name;
-      document.getElementById('hud-ammo').innerText = w.ammo === Infinity ? '∞' : w.ammo;
-      document.getElementById('hud-max-ammo').innerText = w.maxAmmo === Infinity ? '∞' : w.maxAmmo;
-
-      document.getElementById('hud-shield-item').innerText = player.shieldItems;
-      document.getElementById('hud-pot-item').innerText = player.potionItems;
-
-      document.getElementById('invincible-tag').style.display = player.isInvincible ? 'block' : 'none';
-      document.getElementById('stealth-tag').style.display = player.isStealth ? 'block' : 'none';
-      document.getElementById('infammo-tag').style.display = player.isInfAmmo ? 'block' : 'none';
-      document.getElementById('speed-tag').style.display = player.isSpeedBoost ? 'block' : 'none';
-    }
-
-    let portalCooldown = 0;
-    function checkPortals() {
-      if (portalCooldown > 0) { portalCooldown--; return; }
-      if (!bluePortal || !redPortal) return;
-
-      const pPos = camera.position;
-      if (pPos.distanceTo(bluePortal.mesh.position) < 1.8) {
-        camera.position.set(redPortal.x, redPortal.y + 0.5, redPortal.z);
-        portalCooldown = 60;
-      } else if (pPos.distanceTo(redPortal.mesh.position) < 1.8) {
-        camera.position.set(bluePortal.x, bluePortal.y + 0.5, bluePortal.z);
-        portalCooldown = 60;
-      }
-    }
-
-    function updateAI() {
-      if (!isAiMode) return;
-      const now = Date.now();
-      const dx = camera.position.x - enemyMesh.position.x;
-      const dz = camera.position.z - enemyMesh.position.z;
-      const dist = Math.sqrt(dx * dx + dz * dz);
-
-      enemyMesh.rotation.y = Math.atan2(dx, dz);
-
-      if (dist > 7) {
-        enemyMesh.position.x += (dx / dist) * 0.08;
-        enemyMesh.position.z += (dz / dist) * 0.08;
-      }
-
-      if (dist < 25 && now - aiPlayer.lastShootTime > 1200) {
-        aiPlayer.lastShootTime = now;
-        if (!player.isInvincible) { applyDamage(12); showFlash('#ff0055'); }
-      }
-
-      if (aiPlayer.hp <= 0) {
-        player.score++;
-        document.getElementById('my-score').innerText = player.score;
-        aiPlayer.hp = 100;
-        enemyMesh.position.set((Math.random() - 0.5) * 30, 0.9, (Math.random() - 0.5) * 30);
-      }
-    }
-
-    let menuOpen = false;
-    function toggleMenu() {
-      menuOpen = !menuOpen;
-      document.getElementById('ingame-menu').style.display = menuOpen ? 'block' : 'none';
-      if (menuOpen) document.exitPointerLock();
-      else document.body.requestPointerLock();
-    }
-
-    function resumeGame() {
-      menuOpen = false;
-      document.getElementById('ingame-menu').style.display = 'none';
-      document.body.requestPointerLock();
-    }
-
-    document.getElementById('btn-opt-hp').onclick = () => { player.isInvincible = !player.isInvincible; updateHud(); };
-    document.getElementById('btn-opt-ammo').onclick = () => { player.isInfAmmo = !player.isInfAmmo; updateHud(); };
-    document.getElementById('btn-opt-weapon').onclick = () => {
-      const keys = ['RIFLE', 'SNIPER'];
-      currentWeaponKey = keys[Math.floor(Math.random() * keys.length)];
-      updateHud();
-    };
-    document.getElementById('btn-opt-mode').onclick = () => { player.isSpeedBoost = !player.isSpeedBoost; updateHud(); };
-    document.getElementById('btn-opt-gravity').onclick = () => { player.isLowGravity = !player.isLowGravity; updateHud(); };
-
-    function gameLoop() {
-      if (!gameStarted) return;
-
-      camera.rotation.order = 'YXZ';
-      camera.rotation.y = player.yaw;
-      camera.rotation.x = player.pitch;
-
-      const speed = player.isSpeedBoost ? 0.25 : 0.12;
-      const moveVec = new THREE.Vector3();
-
-      if (keys['KeyW'] || keys['ArrowUp']) moveVec.z -= 1;
-      if (keys['KeyS'] || keys['ArrowDown']) moveVec.z += 1;
-      if (keys['KeyA'] || keys['ArrowLeft']) moveVec.x -= 1;
-      if (keys['KeyD'] || keys['ArrowRight']) moveVec.x += 1;
-
-      moveVec.normalize();
-      moveVec.applyAxisAngle(new THREE.Vector3(0, 1, 0), player.yaw);
-
-      player.vx = moveVec.x * speed;
-      player.vz = moveVec.z * speed;
-
-      const gravity = player.isLowGravity ? 0.005 : 0.015;
-      if (keys['Space'] && camera.position.y <= 1.8) {
-        player.vy = player.isLowGravity ? 0.25 : 0.2;
-      }
-
-      player.vy -= gravity;
-      camera.position.y += player.vy;
-
-      if (camera.position.y < 1.8) {
-        camera.position.y = 1.8;
-        player.vy = 0;
-      }
-
-      camera.position.x += player.vx;
-      camera.position.z += player.vz;
-
-      gunMesh.position.set(0.2, -0.2, -0.4);
-
-      for (let i = bullets.length - 1; i >= 0; i--) {
-        const b = bullets[i];
-        b.mesh.position.addScaledVector(b.dir, b.speed * 0.016);
-        b.life--;
-
-        if (b.mesh.position.distanceTo(enemyMesh.position) < 1.2) {
-          if (isAiMode) aiPlayer.hp -= b.dmg;
-          else sendNetwork({ type: 'hit', dmg: b.dmg });
-          scene.remove(b.mesh);
-          bullets.splice(i, 1);
-          continue;
-        }
-
-        if (b.life <= 0) {
-          scene.remove(b.mesh);
-          bullets.splice(i, 1);
-        }
-      }
-
-      checkPortals();
-      updateAI();
-
-      sendNetwork({
-        type: 'update',
-        x: camera.position.x,
-        y: camera.position.y,
-        z: camera.position.z,
-        rot: player.yaw,
-        stealth: player.isStealth,
-        score: player.score
-      });
-
-      renderer.render(scene, camera);
-      requestAnimationFrame(gameLoop);
-    }
-
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
   </script>
 </body>
 </html>
