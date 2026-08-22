@@ -249,7 +249,7 @@
     /* =========================================
        2. 피어투피어 연결 (PeerJS) 및 AI 변수
        ========================================= */
-    const PEER_PREFIX = "rival_portal_fps_2025_";
+    const PEER_PREFIX = "rival-portal-fps-2025-";
     let peer, conn, isHost = false, isAiMode = false;
     let enemyReady = false, gameStarted = false;
 
@@ -279,17 +279,21 @@
       
       document.getElementById('generated-code').innerText = code;
       document.getElementById('room-code-display').style.display = 'block';
-      document.getElementById('code-status-msg').innerText = "⏳ 상대방의 접속을 대기 중입니다...";
+      document.getElementById('code-status-msg').innerText = "⏳ 서버 연결 중...";
       document.getElementById('code-status-msg').style.color = "#00ffcc";
 
       const targetId = PEER_PREFIX + code;
       isHost = true;
       
-      if (peer) peer.destroy();
-      peer = new Peer(targetId);
+      if (peer && !peer.destroyed) {
+        peer.destroy();
+      }
 
-      peer.on('open', () => {
-        console.log("호스트 방 생성 완료:", code);
+      peer = new Peer(targetId, { debug: 1 });
+
+      peer.on('open', (id) => {
+        console.log("방 생성 성공. My ID:", id);
+        document.getElementById('code-status-msg').innerText = "⏳ 상대방의 접속을 대기 중입니다...";
       });
 
       peer.on('connection', connection => { 
@@ -298,8 +302,12 @@
       });
 
       peer.on('error', err => {
-        console.error(err);
-        document.getElementById('code-status-msg').innerText = "❌ 방 생성에 실패했습니다. 다시 시도해 주세요.";
+        console.error("Peer 오류 발생:", err);
+        if (err.type === 'unavailable-id') {
+          document.getElementById('code-status-msg').innerText = "⚠️ 이미 사용 중인 코드입니다. 다시 '방 만들기'를 눌러주세요.";
+        } else {
+          document.getElementById('code-status-msg').innerText = "❌ 방 생성 실패: " + err.type;
+        }
         document.getElementById('code-status-msg').style.color = "#ff0055";
       });
     }
@@ -314,20 +322,24 @@
       }
       
       isAiMode = isHost = false; 
-      document.getElementById('code-status-msg').innerText = `⏳ 방 [ ${inputVal} ]에 접속을 시도 중입니다...`;
+      document.getElementById('code-status-msg').innerText = `⏳ 방 [ ${inputVal} ] 접속 준비 중...`;
       document.getElementById('code-status-msg').style.color = "#00bfff";
       
-      if (peer) peer.destroy();
+      if (peer && !peer.destroyed) {
+        peer.destroy();
+      }
+
       peer = new Peer(); 
       
       peer.on('open', () => { 
-        conn = peer.connect(PEER_PREFIX + inputVal); 
+        document.getElementById('code-status-msg').innerText = `⏳ 방 [ ${inputVal} ]에 연결을 시도합니다...`;
+        conn = peer.connect(PEER_PREFIX + inputVal, { reliable: true }); 
         setupDataListener(); 
       });
 
       peer.on('error', err => {
-        console.error(err);
-        document.getElementById('code-status-msg').innerText = "❌ 접속 실패. 코드가 올바른지, 혹은 방이 아직 열려있는지 확인하세요.";
+        console.error("클라이언트 연결 오류:", err);
+        document.getElementById('code-status-msg').innerText = "❌ 접속 실패: 코드가 올바른지 확인하세요.";
         document.getElementById('code-status-msg').style.color = "#ff0055";
       });
     }
