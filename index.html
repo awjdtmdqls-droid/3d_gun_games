@@ -137,11 +137,11 @@
   </div>
 
   <div class="ui-layer">
-    <!-- 입력 글자수 제한(maxlength)을 45로 확대하여 긴 IP주소도 정상 입력 가능하도록 수정 -->
+    <!-- 네트워크 접속 입력창 및 접속 버튼 개선 -->
     <div id="step-code" class="card interactive">
       <h2>1v1 FPS ARENA</h2>
       <p class="desc">부드러운 저중력 점프 & 커스텀 아이템 3D 전장!</p>
-      <input type="text" id="room-code-input" placeholder="4자리 코드 또는 상대방 IP 주소 입력 (예: 192.168.0.15)" maxlength="45">
+      <input type="text" id="room-code-input" placeholder="4자리 코드 또는 상대방 IP 주소 입력" maxlength="20">
       <button class="action-btn" onclick="createRoom()">🎲 방 만들기 (Host)</button>
       <button class="action-btn secondary" onclick="joinRoom()">🔗 4자리 코드로 접속 (Join Code)</button>
       <button class="action-btn ip-btn" onclick="joinRoomByIp()">🌐 상대방 IP로 접속 (Join IP)</button>
@@ -1331,14 +1331,14 @@
       document.getElementById('step-code').style.display = 'none'; document.getElementById('step-weapon').style.display = 'block';
     }
 
-    /* 방 만들기 및 접속 관련 로직 */
+    /* 방 만들기 및 접속 관련 업데이트된 로직 */
     function createRoom() {
       isAiMode = false;
       const inputVal = document.getElementById('room-code-input').value.trim();
       let targetId = "";
 
       if (inputVal.includes('.')) {
-        // IP 주소를 직접 입력하고 방을 만든 경우
+        // IP 주소를 직접 입력하고 방을 만든 경우 (Host가 자기 IP를 입력하여 방 생성)
         const cleanIp = inputVal.replace(/[^0-9a-zA-Z]/g, '-');
         targetId = PEER_PREFIX + "ip-" + cleanIp;
         document.getElementById('code-status-msg').innerText = `내 IP [ ${inputVal} ] 기준 방 생성 완료! (접속 대기 중)`;
@@ -1370,19 +1370,15 @@
     }
 
     function joinRoom() {
-      const inputVal = document.getElementById('room-code-input').value.trim();
-      if (inputVal.includes('.')) {
-        return joinRoomByIp();
-      }
-      if (inputVal.length !== 4) return alert("4자리 코드를 입력하세요!");
-      
+      const code = document.getElementById('room-code-input').value.trim();
+      if (code.length !== 4) return alert("4자리 코드를 입력하세요!");
       isAiMode = isHost = false; 
-      document.getElementById('code-status-msg').innerText = `코드 [ ${inputVal} ] 접속 시도 중...`;
+      document.getElementById('code-status-msg').innerText = `코드 [ ${code} ] 접속 시도 중...`;
       
       if (peer) peer.destroy();
       peer = new Peer(); 
       peer.on('open', () => { 
-        conn = peer.connect(PEER_PREFIX + inputVal); 
+        conn = peer.connect(PEER_PREFIX + code); 
         setupDataListener(); 
       });
 
